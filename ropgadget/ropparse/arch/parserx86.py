@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+from capstone import CS_MODE_32
 
 class X86:
     # specially for "ret", none or one operand required
@@ -136,15 +137,22 @@ class ROPParserX86:
 			for s in gadget.split(" ; "):
                             prefix = s.split()[0]
                             ins = X86.instructions.get(prefix)
-                            oprand1 = None
-                            oprand2 = None
+
+                            # get the operand and dst 
+                            operand1 = None
+                            operand2 = None
                             if ins[0] == 1:
                                 operand1 = Exp.parseOperand(s.split(",")[0][len(prefix)+1:])
                             elif ins[1] == 2:
                                 operand1 = Exp.parseOperand(s.split(",")[0][len(prefix)+1:])
                                 operand2 = Exp.parseOperand(s.split(",")[1])
                             # contruct all exps based on the instruction
-                            exps = Exp.parse(ins[1], oprand1, oprand2)
+                            mapping = {}
+                            if operand1 != None:
+                                mapping.update({"operand1":operand1})
+                            if operand2 != None:
+                                mapping.update({"operand2":operand2})
+                            exps = Exp.parse(ins[1], mapping)
 
                             # bind previous exps with new exp
                             for k,v in exps.items():
@@ -156,4 +164,6 @@ class ROPParserX86:
 		
 
 if __name__ == '__main__':
-    
+    gadget = ["adc al, -0x6f ; mov eax, dword ptr [rcx + rax*4] ; sub eax, edx ; ret"]
+    p = ROPParserX86(gadget, CS_MODE_32)
+    p.parse()

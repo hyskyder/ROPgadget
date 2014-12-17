@@ -103,11 +103,20 @@ class Exp:
                 return exp
                 
         @staticmethod
-        def parse(string, oprand1=None, oprand2=None):
+        def parse(string, mapping):
             exps = {}
             for s in string:
-                dst = string.split()[0]
+                # dst is either the operand1, regs or memory location
+                # Ex: operand1 = operand1 + operand2 or [esp] = operand1 or esp = esp + 4
+                dst = s.split()[0]
+                if dst == "operand1":
+                    dst = str(mapping["operand1"])
 
+                rpn = []
+                oprator = []
+                for e in s.split()[2:]:
+                    if s == 
+                
                 exps.update({dst:exp})
             return exps
 
@@ -137,5 +146,7 @@ if __name__ == '__main__':
     print Exp.parseOperand("cl","cl")
     print Exp.parseOperand("1","cl")
     print Exp.parseOperand("dword ptr [rdx + r12*4]",["rdx", "r12"])
+    print Exp.parse("operand1 = operand2", { "operand1":Exp("eax"), "operand2":Exp("ebx")})
+    print Exp.parse("operand1 = operand1 + operand2", {"operand1":Exp("eax"), "operand2":Exp(4)})
 
 
