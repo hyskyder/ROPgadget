@@ -8,5 +8,5 @@ class ROPChain:
 
     def parse_gadget(self):
 	    if self.binary.getArch() == CS_ARCH_X86:
-		    parser = ROPParserX86(self.gadgets, self.binary.getArchMode())
-        
+		    self.parser = ROPParserX86(self.gadgets, self.binary.getArchMode())
+                    self.formulas = self.parser.parse()
