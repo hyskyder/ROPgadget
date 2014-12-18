@@ -4,10 +4,10 @@ from expression import Exp
 class X86:
     # specially for "ret", none or one operand required
     FLAG = ["CF", "PF", "AF", "ZF", "SF", "TF", "IF", "DF", "OF"]
-    regs32 = ["rax", "eax", "ax", "ah", "al", "rbx", "ebx", "bh", "bl", "rcx", "cx", "ch", "cl", 
+    regs64 = ["rax", "eax", "ax", "ah", "al", "rbx", "ebx", "bh", "bl", "rcx", "cx", "ch", "cl", 
             "rdx", "edx", "dh", "dl" "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12",
             "r13", "r14", "r15"]
-    regs64 = ["eax", "ax", "ah", "al", "ebx", "bx", "bh", "bl", "ecx", "cx", "ch", "cl", "edx", "dx", "dh", "dl" "CS", "DS", "ES", "FS", "GS", "SS", "esi", "edi", "ebp", "esp", "eip"]
+    regs32 = ["eax", "ax", "ah", "al", "ebx", "bx", "bh", "bl", "ecx", "cx", "ch", "cl", "edx", "dx", "dh", "dl" "CS", "DS", "ES", "FS", "GS", "SS", "esi", "edi", "ebp", "esp", "eip"]
     insn = {
             # data transfer
 	    "mov": [2, ["operand1 = operand2"]], 
@@ -17,7 +17,7 @@ class X86:
 	    "cmovae": [2, ["operand1 = ( CF == 0 ) ? operand2 : operand1"]], 
 	    "cmovb": [2, ["operand1 = ( CF == 1 ) ? operand2 : operand1"]], 
 	    "cmovbe": [2, ["operand1 = ( ZF == 1 || CF == 1 ) ? operand2 : operand1"]], 
-	    "cmovg": [2, [""]], 
+	    #"cmovg": [2, [""]], 
 	    "cmovge": [2, ["operand1 = ( SF == 0 || OF == 0 ) ? operand2 : operand1"]], 
 	    "cmovl": [2, ["operand1 = ( SF == 1 || OF == 1 ) ? operand2 : operand1"]], 
 	    "cmovle": [2, ["operand1 = ( ( ( SF xor OF ) or ZF ) == 1) ? operand2 : operand1"]], 
@@ -69,11 +69,11 @@ class X86:
 	    "idiv": [1, "eax = ( edx << 32 + eax ) / operand1", "edx = edx:eax % operand1"], 
 	    "div": [1], 
 '''
-	    "inc": [1, "operand1 = operand1 + 1"], 
-	    "dec": [1, "operand1 = operand1 - 1"], 
-	    "neg": [1, "operand1 = - operand1"], 
+	    "inc": [1, ["operand1 = operand1 + 1"]], 
+	    "dec": [1, ["operand1 = operand1 - 1"]], 
+	    "neg": [1, ["operand1 = - operand1"]], 
             # control transfer
-            "ret": [1, "ip = * sp", "sp = sp + length"], 
+            "ret": [1, ["ip = * sp", "sp = sp + length"]], 
 '''
 	    "iret": [1], 
 	    "int": [0], 
@@ -140,19 +140,21 @@ class ROPParserX86:
                         self.wrap = {"sp":"esp", "ip":"eip", "length":"4"}
                         # wrap the formula with arch_specified regs
                         # Ex: update sp with esp , ip with eip, length with 4
-                        for k,v in X86.insn.items():
-                            for f in v[1]:
-                                for o, n in self.wrap.items():
-                                    f = f.replace(o,n)
+			for o, n in self.wrap.items():
+				for k, v in X86.insn.items():
+					for i, s in enumerate(v[1]):
+						v[1][i] = s.replace(o,n)
+					X86.insn.update({k:v})
                 else:
 			self.regs = X86.regs64 + X86.FLAG 	
                         self.wrap = {"sp":"rsp", "ip":"rip", "length":"8"}
-                        for k,v in X86.insn.items():
-                            for f in v[1]:
-                                for o, n in self.wrap.items():
-                                    f = f.replace(o,n)
+			for o, n in self.wrap.items():
+				for k, v in X86.insn.items():
+					for i, s in enumerate(v[1]):
+						v[1][i] = s.replace(o,n)
+					X86.insn.update({k:v})
 	def parse(self):
-		formulats = []
+		formulas = []
 		for gadget in self.gadgets:
 			regs = {}
 			for s in gadget.split(" ; "):
@@ -163,10 +165,17 @@ class ROPParserX86:
                             operand1 = None
                             operand2 = None
                             if ins[0] == 1:
-                                operand1 = Exp.parseOperand(s.split(",")[0][len(prefix)+1:], self.regs)
+				# handle ret instruction as we can have "ret" or "ret operand1"
+				if prefix == "ret":
+					if s.find(" ") == -1:
+						operand1 = 0
+					else:
+						operand1 = Exp.parseOperand(s.split(", ")[0][len(prefix)+1:], self.regs)
+				else:
+					operand1 = Exp.parseOperand(s.split(", ")[0][len(prefix)+1:], self.regs)
                             elif ins[0] == 2:
-                                operand1 = Exp.parseOperand(s.split(",")[0][len(prefix)+1:], self.regs)
-                                operand2 = Exp.parseOperand(s.split(",")[1], self.regs)
+                                operand1 = Exp.parseOperand(s.split(", ")[0][len(prefix)+1:], self.regs)
+                                operand2 = Exp.parseOperand(s.split(", ")[1], self.regs)
                             # contruct all exps based on the instruction
                             operands = {}
                             if operand1 != None:
@@ -178,15 +187,16 @@ class ROPParserX86:
 
                             # bind previous exps with new exp
                             for k,v in exps.items():
-                                if k in regs:
-                                    v.binding(regs.get(k))
-                                print k, v
-                                regs.update({k, v})
-			formulats.append(regs)
-		return formulats
+				v.binding(regs)
+				regs.update({k:v})
+			formulas.append(regs)
+		return formulas
 		
 
 if __name__ == '__main__':
-    gadget = ["adc al, -0x6f ; mov eax, dword ptr [rcx + rax*4] ; sub eax, edx ; ret"]
+    gadget = ["adc al, -0x6f ; mov eax, dword ptr [ecx + eax*4] ; sub eax, edx ; ret"]
     p = ROPParserX86(gadget, CS_MODE_32)
-    p.parse()
+    formulas = p.parse()
+    for formula in formulas:
+	    for reg, exp in formula.items():
+		    print reg, exp

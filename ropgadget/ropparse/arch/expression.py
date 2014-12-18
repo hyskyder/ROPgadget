@@ -47,7 +47,7 @@ class Exp:
                 elif self.op is not None:
                     if self.op == "*":
                         return "[" + str(self.left) + "]"
-                    return  self.op + str(self.left) 
+                    return  "(" + self.op + str(self.left) + ")" 
                 else:
                     return str(self.left)
 
@@ -55,11 +55,11 @@ class Exp:
             pass
 
         def binding(self, mapping):
-            if type(self.left) is Exp:
+            if isinstance(self.left, Exp):
                 self.left.binding(mapping)
-            if type(self.right) is Exp:
+            if isinstance(self.right, Exp):
                 self.right.binding(mapping)
-            if type(self.condition) is Exp:
+            if isinstance(self.condition, Exp):
                 self.condition.binding(mapping)
             
             for k,v in mapping.items():
@@ -168,12 +168,10 @@ class Exp:
 		# Ex: operand1 = operand1 + operand2 + (CF == 1) ? 1 : 0
                 exp = Exp.parseExp(s.split()[2:])
                 for k,v in operands.items():
-                    print k, v
-                    if type(exp) is Exp:
+                    if isinstance(exp, Exp):
                         exp.binding({k:v})
                     elif exp == k:
                         exp = v
-                print dst, exp
 
                 exps.update({dst:exp})
             return exps
