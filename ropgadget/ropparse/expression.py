@@ -67,19 +67,19 @@ class Exp:
 
         @staticmethod
         def parseOperand(string, regs):
+            # Operand can be immediate val or reg or memory location
+	    # Ex: mov eax, 1 	mov ebx, [eax + edi*4 + 0x14]
             if string.find(" ") == -1:
-                # immediate val or reg
                 if string in regs:
                     return Exp(string)
                 else:
                     return Exp(int(string, 16))
             else:
-                # memory location
                 s = string.split("[")[1][:-1]
-                # NOTE: the format is [rax + rbx*4 + 0x199]
                 s = s.replace("*", " * ")
 
-                # convert this by reverse polish notation
+		# convert string to exp class
+		# here we only can have operator like '*' or '+'
                 rpn = []
                 oprator = []
                 for val in s.split():
@@ -112,10 +112,10 @@ class Exp:
                 if dst == "operand1":
                     dst = str(mapping["operand1"])
 
+		# parse string into Exp
+		# Ex: operand1 = operand1 + operand2 + (CF == 1) ? 1 : 0
                 rpn = []
                 oprator = []
-                for e in s.split()[2:]:
-                    if s == 
                 
                 exps.update({dst:exp})
             return exps
