@@ -12,18 +12,20 @@ class Exp:
 			unary-op Expression
 
 		Unary-op:
-			^ & + - ~ ! *
+			* & + - ~ 
 
 		Binary-Expression:
 			Expression Binary-op Expression
 
 		Binary-op:
-			&& || + - % & |  ~ ^ >> << == != > >= < <= = 
+			&& || + - % & | ^ >> << == != > >= < <= 
 
 		Conditional-Expression:
 			Expression ? Expression : Expression;
-			
 	'''
+        # operator precedence, unary always first
+        unaryOp = ["-", "*", "+", "&", "~"]
+        binOp = {"*":1, "%":1, "/":1, "+":2, "-":2, ">>":3, "<<":3, "<":4, "<=":4, ">":4, ">=":4, "==":5, "!=":5, "&":6, "^":7, "|":8, "&&":9, "||":10, "?":11, "=":12}
 
 	def __init__(self, left, op=None, right=None, condition=None):
 		if condition != None:
@@ -49,6 +51,9 @@ class Exp:
                 else:
                     return str(self.left)
 
+	def reduce(self):
+            pass
+
         def binding(self, mapping):
             if type(self.left) is Exp:
                 self.left.binding(mapping)
@@ -69,7 +74,7 @@ class Exp:
         def parseOperand(string, regs):
             # Operand can be immediate val or reg or memory location
 	    # Ex: mov eax, 1 	mov ebx, [eax + edi*4 + 0x14]
-            if string.find(" ") == -1:
+            if string.find("[") == -1:
                 if string in regs:
                     return Exp(string)
                 else:
@@ -101,28 +106,77 @@ class Exp:
                     rpn.append(exp)
                 exp = Exp(exp, "*")
                 return exp
-                
         @staticmethod
-        def parse(string, mapping):
+        def parseExp(tokens):
+            exp = Exp.parseUnaryExp(tokens)
+            if len(tokens) == 0:
+                return exp
+            return Exp.parseBinExp(exp, tokens, 12) 
+
+        @staticmethod
+        def parseUnaryExp(tokens):
+            if tokens[0] in Exp.unaryOp:
+                op = tokens.pop(0)
+                return Exp(Exp.parseUnaryExp(tokens),op)
+
+            if tokens[0] == "(":
+                tokens.pop(0)
+                exp = Exp.parseExp(tokens)
+                tokens.pop(0)
+                return exp
+
+            left = tokens.pop(0)
+            return left
+            
+        @staticmethod
+        def parseBinExp(left, tokens, prec):
+            while len(tokens) != 0:
+                if tokens[0] == "?":
+                    tokens.pop(0)
+                    mid = Exp.parseExp(tokens)
+                    tokens.pop(0)
+                    right = Exp.parseExp(tokens)
+                    left = Exp(mid, "condition", right, left)
+                elif tokens[0] in Exp.binOp.keys():
+                    op = tokens.pop(0)
+                    right = Exp.parseUnaryExp(tokens)
+                    nextOp = None 
+                    if len(tokens) != 0:
+                        nextOp = tokens[0]
+
+                    if nextOp == None or nextOp == ")" or Exp.binOp.get(op) <= Exp.binOp.get(nextOp):
+                        left = Exp(left, op, right)
+                    else:
+                        right = Exp.parseBinExp(right, tokens, Exp.binOp.get(op))
+                        left = Exp(left, op, right)
+                else:
+                    break
+
+            return left
+
+        @staticmethod
+        def parse(string, operands):
             exps = {}
             for s in string:
                 # dst is either the operand1, regs or memory location
-                # Ex: operand1 = operand1 + operand2 or [esp] = operand1 or esp = esp + 4
+                # Ex: operand1 = operand1 + operand2 or [esp] = operand1 or esp = esp + length
                 dst = s.split()[0]
                 if dst == "operand1":
-                    dst = str(mapping["operand1"])
+                    dst = str(operands["operand1"])
 
 		# parse string into Exp
 		# Ex: operand1 = operand1 + operand2 + (CF == 1) ? 1 : 0
-                rpn = []
-                oprator = []
-                
+                exp = Exp.parseExp(s.split()[2:])
+                for k,v in operands.items():
+                    if type(exp) is Exp:
+                        exp.binding({k:v})
+                    elif exp == k:
+                        exp = v
+                        
                 exps.update({dst:exp})
             return exps
 
 
-	def reduce(self):
-            pass
 
 if __name__ == '__main__':
     a = Exp(1,"-")
@@ -142,11 +196,17 @@ if __name__ == '__main__':
     print e
     print Exp( Exp("EAX", ">>" , d ) , "+" , Exp("c", "-" ,1) )
     print Exp.parseOperand("byte ptr [rax + 0x15]", ["rax"])
-    print Exp.parseOperand("byte ptr [rax + 0xffffffffffffff83]" ,"rax")
-    print Exp.parseOperand("cl","cl")
-    print Exp.parseOperand("1","cl")
+    print Exp.parseOperand("byte ptr [rax + 0xffffffffffffff83]", ["rax"])
+    print Exp.parseOperand("cl",["cl"])
+    print Exp.parseOperand("1",["cl"])
     print Exp.parseOperand("dword ptr [rdx + r12*4]",["rdx", "r12"])
-    print Exp.parse("operand1 = operand2", { "operand1":Exp("eax"), "operand2":Exp("ebx")})
-    print Exp.parse("operand1 = operand1 + operand2", {"operand1":Exp("eax"), "operand2":Exp(4)})
+    exps = Exp.parse(["operand1 = operand2"], { "operand1":Exp("eax"), "operand2":Exp("ebx")})
+    for k,v in exps.items():
+        print k
+        print v
+    exps = Exp.parse(["operand1 = operand1 + operand2 + ( CF == 0 ) ? 1 : 0"], {"operand1":Exp("eax"), "operand2":Exp(4)})
+    for k,v in exps.items():
+        print k
+        print v
 
 
