@@ -1,15 +1,17 @@
 #!/usr/bin/env python2
 from capstone import CS_MODE_32
-
+from expression import Exp
 class X86:
     # specially for "ret", none or one operand required
     FLAG = ["CF", "PF", "AF", "ZF", "SF", "TF", "IF", "DF", "OF"]
-    32bits = ["eax", "ax", "ah", "al", "ebx", "bx", "bh", "bl", "ecx", "cx", "ch", "cl", "edx", "dx", "dh", "dl" "CS", "DS", "ES", "FS", "GS", "SS", "esi", "edi", "ebp", "esp", "eip"]
-    64bits = ["rax", "eax", "ax", "ah", "al", "rbx", "ebx", "bh", "bl", "rcx", "cx", "ch", "cl", "rdx", "edx", "dh", "dl" "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"]
+    regs32 = ["rax", "eax", "ax", "ah", "al", "rbx", "ebx", "bh", "bl", "rcx", "cx", "ch", "cl", 
+            "rdx", "edx", "dh", "dl" "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12",
+            "r13", "r14", "r15"]
+    regs64 = ["eax", "ax", "ah", "al", "ebx", "bx", "bh", "bl", "ecx", "cx", "ch", "cl", "edx", "dx", "dh", "dl" "CS", "DS", "ES", "FS", "GS", "SS", "esi", "edi", "ebp", "esp", "eip"]
     insn = {
             # data transfer
-	    "mov": [2, ["operand1 = operand2"]]
-	    "cmove": [2, ["operand1 = ( ZF == 1 ) ? operand2 : operand1"]]
+	    "mov": [2, ["operand1 = operand2"]], 
+	    "cmove": [2, ["operand1 = ( ZF == 1 ) ? operand2 : operand1"]],
 	    "cmovne": [2, ["operand1 = ( ZF == 0 ) ? operand2 : operand1"]], 
 	    "cmova": [2, ["operand1 = ( ZF == 0 || CF == 0 ) ? operand2 : operand1"]], 
 	    "cmovae": [2, ["operand1 = ( CF == 0 ) ? operand2 : operand1"]], 
@@ -27,7 +29,7 @@ class X86:
 	    "xadd": [2], 
 	    "cmpxchg": [2], 
 '''
-	    "push": [1, ["* sp = operand1", "sp = sp - length"]]
+	    "push": [1, ["* sp = operand1", "sp = sp - length"]],
 	    "pop": [1, ["operand1 = * sp", "sp = sp + length"]], 
 '''
 	    "in": [0], 
@@ -103,7 +105,7 @@ class X86:
             "and": [2, ["operand1 = operand1 & operand2"]], 
 	    "or": [2, ["operand1 = operand2 | operand2"]], 
 	    "xor": [2, ["operand1 = operand1 ^ operand2"]], 
-	    "not": [2, ["operand1 = ~ operand1"]]
+	    "not": [2, ["operand1 = ~ operand1"]]}
             # shift and rotate
 '''
             "sar": [2], 
@@ -129,14 +131,12 @@ class X86:
 	    "xlatb": [1]
 	    # TODO: string operation, loop operation, MMX instruction, float point, System instruction
 '''
-	    }
-
 class ROPParserX86:
 	def __init__(self, gadgets, mode):
 		self.gadgets = gadget
                 self.mode = mode
 		if mode == CS_MODE_32:
-			self.regs = X86.32bits + X86.FLAG 	
+			self.regs = X86.regs32 + X86.FLAG 	
                         self.wrap = {"sp":"esp", "ip":"eip", "length":"4"}
                         # wrap the formula with arch_specified regs
                         # Ex: update sp with esp , ip with eip, length with 4
@@ -145,7 +145,7 @@ class ROPParserX86:
                                 for o, n in self.wrap.items():
                                     f = f.replace(o,n)
                 else:
-			self.regs = X86.64bits + X86.FLAG 	
+			self.regs = X86.regs64 + X86.FLAG 	
                         self.wrap = {"sp":"rsp", "ip":"rip", "length":"8"}
                         for k,v in X86.insn.items():
                             for f in v[1]:
@@ -180,6 +180,7 @@ class ROPParserX86:
                             for k,v in exps.items():
                                 if k in regs:
                                     v.binding(regs.get(k))
+                                print k, v
                                 regs.update({k, v})
 			formulats.append(regs)
 		return formulats

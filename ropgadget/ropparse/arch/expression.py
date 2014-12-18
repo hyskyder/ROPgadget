@@ -168,11 +168,13 @@ class Exp:
 		# Ex: operand1 = operand1 + operand2 + (CF == 1) ? 1 : 0
                 exp = Exp.parseExp(s.split()[2:])
                 for k,v in operands.items():
+                    print k, v
                     if type(exp) is Exp:
                         exp.binding({k:v})
                     elif exp == k:
                         exp = v
-                        
+                print dst, exp
+
                 exps.update({dst:exp})
             return exps
 

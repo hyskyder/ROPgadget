@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-
+from arch import *
 class ROPChain:
     def __init__(self, binary, gadgets):
         self.binary = binary
