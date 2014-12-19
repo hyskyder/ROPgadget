@@ -23,8 +23,8 @@ class X86:
 	    "cmovle": [2, ["operand1 = ( ( ( SF xor OF ) or ZF ) == 1) ? operand2 : operand1"]], 
 	    "cmovs": [2, ["operand1 = ( SF == 1 ) ? operand2 : operand1"]], 
 	    "cmovp": [2, ["operand1 = ( PF == 1 ) ? operand2 : operand1"]], 
-#	    "xchg": [2], 
-#	    "bswap": [2], 
+	    "xchg": [2, ["operand1 = operand2", "operand2 = operand1"]], 
+#	    "bswap": [1, ["operand1"]], 
 #	    "xadd": [2], 
 #	    "cmpxchg": [2], 
 	    "push": [1, ["* sp = operand1", "sp = sp - length"]],
@@ -48,7 +48,7 @@ class X86:
 #	    "sti": [0], 
 #	    "cli": [0],
 #            # arithmetic
-#	    "cmp": [2, ], 
+	    "cmp": [2, ["ZF = ( operand1 - operand2 ) == 0 ? 0 : -1", ""], 
 #	    "daa": [1],  
 #	    "das": [1], 
 #	    "aaa": [1], 
@@ -99,9 +99,13 @@ class X86:
 	    "xor": [2, ["operand1 = operand1 ^ operand2"]], 
 	    "not": [2, ["operand1 = ~ operand1"]],
             # shift and rotate
-#            "sar": [2], 
-#	    "shr": [2], 
-#	    "sal": [2], 
+            # For SAR, the sign bit is taken care by python
+            # Ex, -2 >> 4 = -1,  2 >> 4 = 0
+	    "sar": [2, ["operand1 = operand1 >> operand2", "CF = operand1 $ ( operand2 - 1 )"]], 
+	    "shr": [2, ["operand1 = operand1 >> operand2", "CF = operand1 $ ( operand2 - 1 )"]], 
+            
+	    "sal": [2, ["operand1 = operand1 << operand2", "CF = operand1"]], 
+	    "shl": [2, ["operand1 = operand1 << operand2", "CF = operand1"]], 
 #	    "shrd": [2], 
 #	    "shld": [2], 
 #	    "ror": [2], 
@@ -179,14 +183,18 @@ class ROPParserX86:
 
                             # bind previous exps with new exp
                             for k,v in exps.items():
-				v.binding(regs)
-				regs.update({k:v})
+                                v = v.binding(regs)
+
+                            # update current regs status
+                            for k,v in exps.items():
+                                regs.update({k:v})
+
 			formulas.append(regs)
 		return formulas
 		
 
 if __name__ == '__main__':
-    gadget = ["add eax, -0x6f ; mov eax, dword ptr [ecx + eax*4] ; sub eax, edx ; ret"]
+    gadget = ["add eax, -0x6f ; mov eax, dword ptr [ecx + eax*4] ; sub eax, edx ; xchg eax, ebx ; ret"]
     p = ROPParserX86(gadget, CS_MODE_32)
     formulas = p.parse()
     print gadget

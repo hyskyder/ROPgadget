@@ -18,14 +18,17 @@ class Exp:
 			Expression Binary-op Expression
 
 		Binary-op:
-			&& || + - % & | ^ >> << == != > >= < <= 
+			&& || + - % & | ^ >> << == != > >= < <= $
 
 		Conditional-Expression:
 			Expression ? Expression : Expression;
+
+                A $ B : C is defined as take the Bth bit to Cth bit of A
+                A $ B = A $ B : B
 	'''
         # operator precedence, unary always first
         unaryOp = ["-", "*", "+", "&", "~"]
-        binOp = {"*":1, "%":1, "/":1, "+":2, "-":2, ">>":3, "<<":3, "<":4, "<=":4, ">":4, ">=":4, "==":5, "!=":5, "&":6, "^":7, "|":8, "&&":9, "||":10, "?":11, "=":12}
+        binOp = {"*":1, "%":1, "/":1, "+":2, "-":2, ">>":3, "<<":3, "<":4, "<=":4, ">":4, ">=":4, "==":5, "!=":5, "&":6, "^":7, "|":8, "&&":9, "||":10, "?":11, "$":11, "=":12}
 
 	def __init__(self, left, op=None, right=None, condition=None):
 		if condition != None:
@@ -83,29 +86,8 @@ class Exp:
                 s = string.split("[")[1][:-1]
                 s = s.replace("*", " * ")
 
-		# convert string to exp class
-		# here we only can have operator like '*' or '+'
-                rpn = []
-                oprator = []
-                for val in s.split():
-                    if val != "+" and val != "*":
-                        if val in regs:
-                            rpn.append(Exp(val))
-                        else:
-                            rpn.append(int(val,16))
-                    elif len(oprator) == 0:
-                        oprator.append(val)
-                    elif oprator[-1] == "+"  and val == "*":
-                        oprator.append(val)
-                    else:
-                        exp = Exp(rpn.pop(), oprator.pop(), rpn.pop())
-                        rpn.append(exp)
+                return Exp(Exp.parseExp(s.split()), "*")
 
-                while len(oprator) != 0:
-                    exp = Exp(rpn.pop(), oprator.pop(), rpn.pop())
-                    rpn.append(exp)
-                exp = Exp(exp, "*")
-                return exp
         @staticmethod
         def parseExp(tokens):
             exp = Exp.parseUnaryExp(tokens)
@@ -158,11 +140,13 @@ class Exp:
         def parse(string, operands):
             exps = {}
             for s in string:
-                # dst is either the operand1, regs or memory location
+                # dst is either the operand, regs or memory location
                 # Ex: operand1 = operand1 + operand2 or [esp] = operand1 or esp = esp + length
                 dst = s.split()[0]
                 if dst == "operand1":
                     dst = str(operands["operand1"])
+                elif dst == "operand2":
+                    dst = str(operands["operand2"])
 
 		# parse string into Exp
 		# Ex: operand1 = operand1 + operand2 + (CF == 1) ? 1 : 0
@@ -205,6 +189,10 @@ if __name__ == '__main__':
         print k
         print v
     exps = Exp.parse(["operand1 = operand1 + operand2 + ( CF == 0 ) ? 1 : 0"], {"operand1":Exp("eax"), "operand2":Exp(4)})
+    for k,v in exps.items():
+        print k
+        print v
+    exps = Exp.parse(["operand1 = ( operand2 - 1 ) $ operand1"], {"operand1":Exp("eax"), "operand2":Exp(4)})
     for k,v in exps.items():
         print k
         print v
