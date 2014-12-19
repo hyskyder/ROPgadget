@@ -63,9 +63,9 @@ class X86:
 #	    "mul": [1], 
 #	    "idiv": [1, "eax = ( edx << 32 + eax ) / operand1", "edx = edx:eax % operand1"], 
 #	    "div": [1], 
-#	    "inc": [1, ["operand1 = operand1 + 1"]], 
-#	    "dec": [1, ["operand1 = operand1 - 1"]], 
-#	    "neg": [1, ["operand1 = - operand1"]], 
+	    "inc": [1, ["operand1 = operand1 + 1"]], 
+	    "dec": [1, ["operand1 = operand1 - 1"]], 
+	    "neg": [1, ["operand1 = - operand1"]], 
             # control transfer
             "ret": [1, ["ip = * sp", "sp = sp + length"]], 
 #	    "iret": [1], 
@@ -97,7 +97,7 @@ class X86:
             "and": [2, ["operand1 = operand1 & operand2"]], 
 	    "or": [2, ["operand1 = operand2 | operand2"]], 
 	    "xor": [2, ["operand1 = operand1 ^ operand2"]], 
-	    "not": [2, ["operand1 = ~ operand1"]]
+	    "not": [2, ["operand1 = ~ operand1"]],
             # shift and rotate
 #            "sar": [2], 
 #	    "shr": [2], 
@@ -117,8 +117,8 @@ class X86:
 #	    "lgs": [0], 
 #	    "lss": [0],
 #            # others
-#            "lea": [2, "operand1 = & operand2"], 
-#	    "nop": [0, ""], 
+            "lea": [2, ["operand1 = & operand2"]], 
+	    "nop": [0, []], 
 #	    "xlatb": [1]
 #	    # TODO: string operation, loop operation, MMX instruction, float point, System instruction
 #
