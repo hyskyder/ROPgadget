@@ -11,9 +11,42 @@ from expression import Exp
 from copy import deepcopy
 class X86:
     FLAG = ["CF", "PF", "AF", "ZF", "SF", "TF", "IF", "DF", "OF"]
-    regs64 = ["rax", "eax", "ax", "ah", "al", "rbx", "ebx", "bx", "bh", "bl", "rcx", "ecx", "cx", "ch", "cl", "rdx", "edx", "dx", "dh", "dl", "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12",
+    regs64 = ["rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12",
             "r13", "r14", "r15", "CS", "DS", "ES", "FS", "GS", "SS"]
-    regs32 = ["eax", "ax", "ah", "al", "ebx", "bx", "bh", "bl", "ecx", "cx", "ch", "cl", "edx", "dx", "dh", "dl", "CS", "DS", "ES", "FS", "GS", "SS", "esi", "edi", "ebp", "esp", "eip"]
+    regs32 = ["eax", "ebx", "ecx", "edx", "CS", "DS", "ES", "FS", "GS", "SS", "esi", "edi", "ebp", "esp", "eip"]
+    Tregs64 = {
+            "eax" : ["eax = rax $ 0 : 31", "rax = rax & 0xffffffff00000000 | eax"],
+            "ax" : ["ax = rax $ 0 : 15", "rax = rax & 0xffffffffffff0000 | ax"],
+            "ah" : ["ah = rax $ 8 : 15", "rax = rax & 0xffffffffffff00ff | ah"],
+            "al" : ["ah = rax $ 0 : 7", "rax = rax & 0xffffffffffffff00 | al"],
+            "ebx" : ["ebx = rbx $ 0 : 31", "rbx = rbx & 0xffffffff00000000 | ebx"],
+            "bx" : ["bx = rbx $ 0 : 15", "rbx= rbx& 0xffffffffffff0000 | bx"],
+            "bh" : ["bh = rbx $ 8 : 15", "rbx = rbx & 0xffffffffffff00ff | bh"],
+            "bl" : ["bh = rbx $ 0 : 7", "rbx = rbx & 0xffffffffffffff00 | bl"],
+            "ecx" : ["ecx = rcx $ 0 : 31", "rcx = rcx & 0xffffffff00000000 | ecx"],
+            "cx" : ["cx = rcx $ 0 : 15", "rcx = rcx & 0xffffffffffff0000 | cx"],
+            "ch" : ["ch = rcx $ 8 : 15", "rcx = rcx & 0xffffffffffff00ff | ch"],
+            "cl" : ["ch = rcx $ 0 : 7", "rcx = rcx & 0xffffffffffffff00 | cl"],
+            "edx" : ["edx = rdx $ 0 : 31", "rdx = rdx & 0xffffffff00000000 | edx"],
+            "dx" : ["dx = rdx $ 0 : 15", "rdx = rdx & 0xffffffffffff0000 | dx"],
+            "dh" : ["dh = rdx $ 8 : 15", "rdx = rdx & 0xffffffffffff00ff | dh"],
+            "dl" : ["dh = rdx $ 0 : 7", "rdx = rdx & 0xffffffffffffff00 | dl"]
+        }
+    Tregs32 = {
+            "ax" : ["ax = eax $ 0 : 15", "eax = eax & 0xffff0000 | ax"],
+            "ah" : ["ah = eax $ 8 : 15", "eax = eax & 0xffff00ff | ah"],
+            "al" : ["ah = eax $ 0 : 7", "eax = eax & 0xffffff00 | al"],
+            "bx" : ["bx = ebx $ 0 : 15", "ebx = ebx & 0xffff0000 | bx"],
+            "bh" : ["bh = ebx $ 8 : 15", "ebx = ebx & 0xffff00ff | bh"],
+            "bl" : ["bh = ebx $ 0 : 7", "ebx = ebx & 0xffffff00 | bl"],
+            "cx" : ["cx = ecx $ 0 : 15", "ecx = ecx & 0xffff0000 | cx"],
+            "ch" : ["ch = ecx $ 8 : 15", "ecx = ecx & 0xffff00ff | ch"],
+            "cl" : ["ch = ecx $ 0 : 7", "ecx = ecx & 0xffffff00 | cl"],
+            "dx" : ["dx = edx $ 0 : 15", "edx = edx & 0xffff0000 | dx"],
+            "dh" : ["dh = edx $ 8 : 15", "edx = edx & 0xffff00ff | dh"],
+            "dl" : ["dh = edx $ 0 : 7", "edx = edx & 0xffffff00 | dl"],
+
+    }
     # Instructions that modifty the execution path
     Control = ["ret", "iret", "int", "into", "enter", "leave", "call", "jmp", "ja", "jae", "jb", "jbe", "jc", "je","jnc", "jne", "jnp", "jp", "jg", "jge", "jl", "jle", "jno", "jns", "jo", "js"]
     insn = {
@@ -34,11 +67,10 @@ class X86:
 	    "xchg": [2, ["operand1 = operand2", "operand2 = operand1"], []],
 	    "bswap": [2, ["operand1"], []], # TODO
 	    "xadd": [2, ["operand2 = operand1 + operand2", "operand1 = operand2"], ["CF", "PF", "AF", "SF", "ZF", "OF"]],
-        # FIXME
-        "cmpxchg": [2, ["temp = sax - operand2", "operand1 = temp == 0 ? operand2 : operand1", "sax = temp != 0 ? operand1 : sax"],["CF", "PF", "AF", "SF", "ZF", "OF"]],
+        "cmpxchg": [2, ["temp = sax - operand1", "operand1 = sax - operand1 == 0 ? operand2 : operand1", "sax = sax - operand1 != 0 ? operand1 : sax"],["CF", "PF", "AF", "SF", "ZF", "OF"]],
 	    "push": [1, ["* ssp = operand1", "ssp = ssp - length"], []],
 	    "pop": [1, ["operand1 = * ssp", "ssp = ssp + length"], []],
-	    "in": [2,["operand1 = undefined"]], #TODO
+	    "in": [2,["operand1 = undefined"]],
 	    "out": [2, [], []],
         "cwde": [0, ["dx = ax > 0 ? 0 : 0xffff"], []],
         "cdq": [0,["edx = eax > 0 ? 0 : 0xffffffff"],[]],
@@ -58,7 +90,7 @@ class X86:
 	    "sti": [0, [], ["IF = 1"]],
 	    "cli": [0, [], ["IF = 0"]],
         # arithmetic
-        "cmp": [2, ["operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+        "cmp": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
 #	    "daa": [1],
 #	    "das": [1],
 #	    "aaa": [1],
@@ -70,11 +102,12 @@ class X86:
 	    "sub": [2, ["operand1 = operand1 - operand2"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
 	    "sbb": [2, ["operand1 = operand1 - operand2 - CF"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
         # FIXME imul need specially atteition
+        # NOTE those 4 cases are handled manully
 	    "imul": [3, [""]],
-        "mul": [1, ["sdx:sax = sax * operand1"], ["OF = sdx", "CF = sdx"]],
-        # FIXME ':' operator need to be handled
+        "mul": [1, []],
         "idiv": [1, ["sax = sdx:sax / operand1", "sdx = sdx:sax % operand1"], []],
         "div": [1, ["sax = sdx:sax / operand1", "sdx = sdx:sax % operand1"], []],
+
 	    "inc": [1, ["operand1 = operand1 + 1"], ["OF", "SF", "ZF", "AF", "PF"]],
 	    "dec": [1, ["operand1 = operand1 - 1"], ["OF", "SF", "ZF", "AF", "PF"]],
 	    "neg": [1, ["operand1 = - operand1"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
@@ -149,7 +182,7 @@ class X86:
         "setno": [1, ["operand1 = OF == 0 ? 0xff : operand1"]],
         "setpe": [1, ["operand1 = PF == 1 ? 0xff : operand1"]],
         "setpo": [1, ["operand1 = PF == 0 ? 0xff : operand1"]],
-        "test": [2, ["operand1 & operand2"], ["OF = 0", "CF = 0", "SF", "ZF", "PF"]],
+        "test": [2, ["temp = operand1 & operand2"], ["OF = 0", "CF = 0", "SF", "ZF", "PF"]],
         # segment
         #            "lds": [0],
         #	    "les": [0],
@@ -318,6 +351,7 @@ class ROPParserX86:
         self.mode = mode
         if mode == CS_MODE_32:
             self.regs = X86.regs32 + X86.FLAG
+            self.Tregs = X86.Tregs32
             self.wrap = {"ssp":"esp", "ip":"eip", "length":"4"}
             # wrap the formula with arch_specified regs
             # Ex: update sp with esp , ip with eip, length with 4
@@ -333,6 +367,7 @@ class ROPParserX86:
                         X86.insn.update({k:v})
         else:
             self.regs = X86.regs64 + X86.FLAG
+            self.Tregs = X86.Tregs64
             self.wrap = {"ssp":"rsp", "ip":"rip", "length":"8"}
             for o, n in self.wrap.items():
                 for k, v in X86.insn.items():
@@ -375,19 +410,20 @@ class ROPParserX86:
         prefix = inst["mnemonic"]
         op_str = inst["op_str"]
         ins = X86.insn.get(prefix)
+        print prefix, op_str
         if prefix in X86.Control:
             # control transfer ins
             operand1 = None
             operands = {}
             if prefix == "call":
-                operand1 = Exp.parseOperand(op_str.split(" ")[1], regs)
+                operand1 = Exp.parseOperand(op_str.split(" ")[0], self.regs, self.Tregs)
                 operands.update({"operand1":operand1})
                 dst = Exp.parse(ins[2], regs)
                 regs.update({"dst":dst})
                 return regs
             # only ret inst can modify other regs
             if prefix == "ret":
-                operand1 = Exp.parseOperand(op_str.split(" ")[0], regs)
+                operand1 = Exp.parseOperand(op_str.split(" ")[0], self.regs, self.Tregs)
                 if operand1 != None:
                     operands.update({"operand1":operand1})
                 else:
@@ -406,7 +442,7 @@ class ROPParserX86:
             if dst.diverged():
                 # handle conditional jmp
                 # dup all the exps on the condition, then handle the rest
-                operand1 = Exp.parseOperand(op_str.split(" ")[0], regs)
+                operand1 = Exp.parseOperand(op_str.split(" ")[0], self.regs, self.Tregs)
                 con = dst.getCondition()
                 con.binding(regs)
                 regs1 = deepcopy(regs)
@@ -444,18 +480,76 @@ class ROPParserX86:
 			# computing ins
             operand1 = None
             operand2 = None
+            # handle special cases
+            if prefix == "imul" or prefix == "mul":
+                exps = {}
+                flags = {}
+                if op_str.count(",") == 0:
+                    operand1 = Exp.parseOperand(op_str.split(",")[0], self.regs, self.Tregs)
+                    if operand1.OperandSize() == 8:
+                        mul = Exp("al", "*", operand1)
+                        exp.update({"ax":mul})
+                        flags.update({"CF":Exp("1", "condition", "0", Exp("ax", "!=", "al"))})
+                        flags.update({"OF":Exp("1", "condition", "0", Exp("ax", "!=", "al"))})
+                        if prefix == "imul":
+                            flags.update({"SF":Exp("7", "bits", "7", mul)})
+                    elif operand1.OperandSize() == 16:
+                        mul = Exp("ax", "*", operand1)
+                        exp.update({"dx":Exp("16", "bits", "31", mul)})
+                        exp.update({"ax":Exp("0", "bits", "15", mul)})
+                        flags.update({"CF":Exp("1", "condition", "0", Exp("dx", "!=", "0"))})
+                        flags.update({"OF":Exp("1", "condition", "0", Exp("dx", "!=", "0"))})
+                        if prefix == "imul":
+                            flags.update({"SF":Exp("15", "bits", "15", mul)})
+                    elif operand1.OperandSize() == 32:
+                        mul = Exp("eax", "*", operand1)
+                        exp.update({"edx":Exp("32", "bits", "63", mul)})
+                        exp.update({"eax":Exp("0", "bits", "31", mul)})
+                        flags.update({"CF":Exp("1", "condition", "0", Exp("edx", "!=", "0"))})
+                        flags.update({"OF":Exp("1", "condition", "0", Exp("edx", "!=", "0"))})
+                        if prefix == "imul":
+                            flags.update({"SF":Exp("31", "bits", "31", mul)})
+                    else:
+                        mul = Exp("rax", "*", operand1)
+                        exp.update({"rdx":Exp("64", "bits", "127", mul)})
+                        exp.update({"rax":Exp("0", "bits", "63", mul)})
+                        flags.update({"CF":Exp("1", "condition", "0", Exp("rdx", "!=", "0"))})
+                        flags.update({"OF":Exp("1", "condition", "0", Exp("rdx", "!=", "0"))})
+                        if prefix == "imul":
+                            flags.update({"SF":Exp("63", "bits", "63", mul)})
+                elif op_str.count(",") == 1:
+                    operand1 = Exp.parseOperand(op_str.split(",")[0], self.regs, self.Tregs)
+                    operand2 = Exp.parseOperand(op_str.split(",")[1], self.regs, self.Tregs)
+                    size = operand1.OperandSize()
+                    mul = Exp(operand1, "*", operand2)
+                    tru = Exp("0", "bits", str(size-1), mul)
+                    exp.update({str(operand1):tru})
+                    flags.update({"SF":Exp(str(size-1), "bits", str(size-1), mul)})
+                    flags.update({"CF":Exp("1", "condition", "0", Exp(mul, "!=", tru))})
+                    flags.update({"OF":Exp("1", "condition", "0", Exp(mul, "!=", tru))})
+                else:
+                    operand1 = Exp.parseOperand(op_str.split(",")[0], self.regs, self.Tregs)
+                    operand2 = Exp.parseOperand(op_str.split(",")[1], self.regs, self.Tregs)
+                    operand3 = Exp.parseOperand(op_str.split(",")[2], self.regs, self.Tregs)
+                    size = operand1.OperandSize()
+                    mul = Exp(operand2, "*", operand3)
+                    tru = Exp("0", "bits", str(size-1), mul)
+                    exp.update({str(operand1):tru})
+                    flags.update({"SF":Exp(str(size-1), "bits", str(size-1), mul)})
+                    flags.update({"CF":Exp("1", "condition", "0", Exp(mul, "!=", tru))})
+                    flags.update({"OF":Exp("1", "condition", "0", Exp(mul, "!=", tru))})
+                # TODO
             if ins[0] == 1:
-                operand1 = Exp.parseOperand(op_str.split(", ")[0], self.regs)
+                operand1 = Exp.parseOperand(op_str.split(", ")[0], self.regs, self.Tregs)
             elif ins[0] == 2:
-                operand1 = Exp.parseOperand(op_str.split(", ")[0], self.regs)
-                operand2 = Exp.parseOperand(op_str.split(", ")[1], self.regs)
+                operand1 = Exp.parseOperand(op_str.split(", ")[0], self.regs, self.Tregs)
+                operand2 = Exp.parseOperand(op_str.split(", ")[1], self.regs, self.Tregs)
                 # contruct all exps based on the instruction
             operands = {}
             if operand1 != None:
                 operands.update({"operand1":operand1})
             if operand2 != None:
                 operands.update({"operand2":operand2})
-            dst = str(operands[ins[1][0].split()[0]])
             # bind previous exps with new exp
             flagExp = Exp("flag")
             exps = Exp.parse(ins[1], operands, flagExp)
@@ -466,12 +560,17 @@ class ROPParserX86:
             if len(ins[2]) != 0:
                 f = Exp.parse(ins[2], operands)
                 for k,v in f.items():
-                    if isinstance(v, Exp):
+                    # exp indicates this flag is directly set instead of depending on the first exp
+                    # "CF = 1"  or "CF"
+                    if k != str(v):
                         regs.update({k:v})
                     else:
                         regs.update({k:Exp(flagExp,v[0])})
             for k,v in exps.items():
                 if k == "temp":
+                    continue
+                if str(v) == "undefined":
+                    del regs[k]
                     continue
                 regs.update({k:v})
             i = i + 1
@@ -480,7 +579,7 @@ class ROPParserX86:
 
 if __name__ == '__main__':
     binarys = [b"\x8d\x4c\x32\x08\x01\xd8\x81\xc6\x34\x12\x00\x00\xc3",
-                b"\xbb\x01\x00\x00\x00\x29\xd8\x83\xf8\x01\x0f\x84\x0f\xf9\x01\x00\x5a\xc3"]
+               b"\xbb\x01\x00\x00\x00\x29\xd8\x83\xf8\x01\x0f\x84\x0f\xf9\x01\x00\x5a\xc3"]
     gadgets = []
     md = Cs(CS_ARCH_X86, CS_MODE_32)
     md.detail = True
@@ -495,3 +594,21 @@ if __name__ == '__main__':
         gadgets.append(gadget)
     p = ROPParserX86(gadgets, CS_MODE_32)
     formulas = p.parse()
+#
+#    binarys = [b"\x0F\x42\xD8\xFF\xC3\x83\xD3\x3C\xC3",
+#                b"\xF9\x48\x0F\x42\xC3\x48\x83\xE8\x01\xC3"]
+#    gadgets = []
+#    md = Cs(CS_ARCH_X86, CS_MODE_64)
+#    md.detail = True
+#    for binary in binarys:
+#        gadget = []
+#        for decode in md.disasm(binary, 0x1000):
+#            inst = {}
+#            inst.update({"mnemonic": decode.mnemonic})
+#            inst.update({"op_str": decode.op_str})
+#            inst.update({"addr": decode.address})
+#            gadget.append(inst)
+#        gadgets.append(gadget)
+#    p = ROPParserX86(gadgets, CS_MODE_64)
+#    formulas = p.parse()
+#
