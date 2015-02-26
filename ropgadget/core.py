@@ -2,10 +2,10 @@
 ## -*- coding: utf-8 -*-
 ##
 ##  Jonathan Salwan - 2014-05-17 - ROPgadget tool
-## 
+##
 ##  http://twitter.com/JonathanSalwan
 ##  http://shell-storm.org/project/ROPgadget/
-## 
+##
 ##  This program is free software: you can redistribute it and/or modify
 ##  it under the terms of the GNU General Public License as published by
 ##  the Free Software  Foundation, either  version 3 of  the License, or
@@ -22,6 +22,7 @@ from capstone           import CS_MODE_32
 from gadgets            import Gadgets
 from options            import Options
 from ropchain.ropmaker  import ROPMaker
+from ropparse.ROPChain  import ROPChain
 
 class Core(cmd.Cmd):
     def __init__(self, options):
@@ -77,11 +78,14 @@ class Core(cmd.Cmd):
 
         arch = self.__binary.getArchMode()
         print "Gadgets information\n============================================================"
+        strs = []
         for gadget in self.__gadgets:
             vaddr = gadget["vaddr"]
             insts = gadget["gadget"]
+            strs.append(gadget["insns"])
             print ("0x%08x" %(vaddr) if arch == CS_MODE_32 else "0x%016x" %(vaddr)) + " : %s" %(insts)
         print "\nUnique gadgets found: %d" %(len(self.__gadgets))
+        rop = ROPChain(self.__binary, strs)
         return True
 
 
@@ -173,7 +177,7 @@ class Core(cmd.Cmd):
         if   self.__options.string:   return self.__lookingForAString(self.__options.string)
         elif self.__options.opcode:   return self.__lookingForOpcodes(self.__options.opcode)
         elif self.__options.memstr:   return self.__lookingForMemStr(self.__options.memstr)
-        else: 
+        else:
             self.__getAllgadgets()
             self.__lookingForGadgets()
             if self.__options.ropchain:
@@ -190,7 +194,7 @@ class Core(cmd.Cmd):
     # Console methods  ============================================
 
     def do_binary(self, s, silent=False):
-        # Do not split the filename with spaces since it might contain 
+        # Do not split the filename with spaces since it might contain
         # whitespaces
         if len(s) == 0:
             if not silent:
@@ -239,7 +243,7 @@ class Core(cmd.Cmd):
         if not silent:
             print "[+] Gadgets loaded !"
 
-        
+
     def help_load(self):
         print "Syntax: load -- Load all gadgets"
         return False
@@ -302,7 +306,7 @@ class Core(cmd.Cmd):
             if a not in gadget:
                 return False
         return True
-        
+
     def __withoutK(self, listK, gadget):
         for a in listK:
             if a in gadget:

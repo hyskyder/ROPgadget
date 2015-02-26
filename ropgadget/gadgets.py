@@ -2,10 +2,10 @@
 ## -*- coding: utf-8 -*-
 ##
 ##  Jonathan Salwan - 2014-05-12 - ROPgadget tool
-## 
+##
 ##  http://twitter.com/JonathanSalwan
 ##  http://shell-storm.org/project/ROPgadget/
-## 
+##
 ##  This program is free software: you can redistribute it and/or modify
 ##  it under the terms of the GNU General Public License as published by
 ##  the Free Software  Foundation, either  version 3 of  the License, or
@@ -26,7 +26,7 @@ class Gadgets:
         for inst in insts:
             for b in bl:
                 if inst.split(" ")[0] == b:
-                    return True 
+                    return True
         return False
 
     def __checkMultiBr(self, insts, br):
@@ -70,13 +70,19 @@ class Gadgets:
                     md = Cs(gad[C_ARCH], gad[C_MODE])
                     decodes = md.disasm(section["opcodes"][ref-(i*gad[C_ALIGN]):ref+gad[C_SIZE]], section["vaddr"]+ref)
                     gadget = ""
+                    insns = []
                     for decode in decodes:
+                        insn = {}
                         gadget += (decode.mnemonic + " " + decode.op_str + " ; ").replace("  ", " ")
+                        insn.update({"mnemonic":decode.mnemonic})
+                        insn.update({"op_str":decode.op_str})
+                        insn.update({"addr":decode.address})
+                        insns.append(insn)
                     if len(gadget) > 0:
                         gadget = gadget[:-3]
                         if (section["vaddr"]+ref-(i*gad[C_ALIGN])) % gad[C_ALIGN] == 0:
                             off = self.__offset
-                            ret += [{"vaddr" :  off+section["vaddr"]+ref-(i*gad[C_ALIGN]), "gadget" : gadget, "decodes" : decodes, "bytes": section["opcodes"][ref-(i*gad[C_ALIGN]):ref+gad[C_SIZE]]}]
+                            ret += [{"insns": insns, "vaddr" :  off+section["vaddr"]+ref-(i*gad[C_ALIGN]), "gadget" : gadget, "decodes" : decodes, "bytes": section["opcodes"][ref-(i*gad[C_ALIGN]):ref+gad[C_SIZE]]}]
         return ret
 
     def addROPGadgets(self, section):
@@ -190,12 +196,11 @@ class Gadgets:
 
     def passClean(self, gadgets, multibr):
         if   self.__binary.getArch() == CS_ARCH_X86:    return self.__passCleanX86(gadgets, multibr)
-        elif self.__binary.getArch() == CS_ARCH_MIPS:   return gadgets 
+        elif self.__binary.getArch() == CS_ARCH_MIPS:   return gadgets
         elif self.__binary.getArch() == CS_ARCH_PPC:    return gadgets
         elif self.__binary.getArch() == CS_ARCH_SPARC:  return gadgets
-        elif self.__binary.getArch() == CS_ARCH_ARM:    return gadgets 
+        elif self.__binary.getArch() == CS_ARCH_ARM:    return gadgets
         elif self.__binary.getArch() == CS_ARCH_ARM64:  return gadgets
         else:
             print "Gadgets().passClean() - Architecture not supported"
             return None
-

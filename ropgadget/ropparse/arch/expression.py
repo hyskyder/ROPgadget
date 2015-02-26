@@ -68,11 +68,6 @@ class Exp:
             except ValueError:
                 return -1
 
-	def diverged(self):
-            if self.condition is not None:
-                return True
-            return False
-
     	def reduce(self):
         	pass
 
@@ -120,18 +115,30 @@ class Exp:
         @staticmethod
         def parseOperand(string, regs, Tregs):
             # Operand can be immediate val or reg or memory location
-	    # Ex: mov eax, 1 	mov ebx, [eax + edi*4 + 0x14]
             if len(string) == 0:
                 return None
             if string.find("[") == -1:
                 try:
+                    # constant
                     return Exp(int(string, 16))
                 except ValueError:
-                    return Exp(string)
+                    # register
+                    if string in Tregs.keys():
+                        exp = Exp.parseExp(Tregs[string][0].split()).getSrc()
+                        exp.binding(regs)
+                        return exp
+                    exp = Exp(string)
+                    if string in regs.keys():
+                        exp.binding(regs)
+                    return exp
             else:
+                # mem
                 s = string.split("[")[1][:-1]
                 s = s.replace("*", " * ")
-                return Exp(Exp.parseExp(s.split()), "*")
+                exp = Exp(Exp.parseExp(s.split()), "*")
+                if str(exp) in regs.keys():
+                    exp = regs[str(exp)]
+                return exp
 
         @staticmethod
         def parseExp(tokens):
@@ -203,15 +210,15 @@ class Exp:
                 elif not isinstance(exp, Exp):
                     dst = exp
 
-                if dst in operands.keys():
+                if operands != None and dst in operands.keys():
                     dst = str(operands[dst])
 
-                for k,v in operands.items():
+                if operands != None:
                     if isinstance(exp, Exp):
-                        exp.binding({k:v})
-                    elif exp == k:
-                        exp = v
-                exps.update({dst:exp})
+                        exp.binding(operands)
+                    elif exp in operands.keys():
+                        exp = operands[exp]
+                    exps.update({dst:exp})
 
                 if flagExp != None and flagExp.left == "flag":
                     flagExp.binding({"flag":exp})
@@ -236,18 +243,16 @@ if __name__ == '__main__':
     e.binding({"b":b})
     print e
     print Exp( Exp("EAX", ">>" , d ) , "+" , Exp("c", "-" ,1) )
-    print Exp.parseOperand("byte ptr [rax + 0x15]", ["rax"], {})
-    print Exp.parseOperand("byte ptr [rax + 0xffffffffffffff83]", ["rax"], {})
-    print Exp.parseOperand("cl",["cl"],{})
-    print Exp.parseOperand("1",["cl"],{})
-    print Exp.parseOperand("dword ptr [rdx + r12*4]",["rdx", "r12"], {})
+    print Exp.parseOperand("byte ptr [rax + 0x15]", {}, {})
+    print Exp.parseOperand("byte ptr [rax + 0xffffffffffffff83]", {}, {})
+    print Exp.parseOperand("cl",{"cl":1},{})
     exps = Exp.parse(["operand1 = operand2"], { "operand1":Exp("eax"), "operand2":Exp("ebx")})
     for k,v in exps.items():
         print k, "==>", v
     exps = Exp.parse(["operand1 = operand1 + operand2 + ( CF == 0 ) ? 1 : 0"], {"operand1":Exp("eax"), "operand2":Exp(4)})
     for k,v in exps.items():
         print k, "==>", v
-    exps = Exp.parse(["operand1 = ( operand2 - 1 ) $ 8 : 15"], {"operand1":Exp("ax"), "operand2":Exp("ecx")})
+    exps = Exp.parse(["operand1 = ( operand2 - 1 ) $ 8 : 15", "esp = esp + 4"], {"operand1":Exp("ax"), "operand2":Exp("ecx")})
     for k,v in exps.items():
         print k, "==>", v
     exps = Exp.parse(["operand1 = operand2 $ 0 : 15"], {"operand1":Exp("eax"), "operand2":Exp("ax")})
