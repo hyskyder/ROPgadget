@@ -5,7 +5,7 @@ class Semantic:
         self.gadgets = []
         self.gadgets.append(gadget)
         self.regs = regs
-        self.deepth = 0
+        self.deepth = 1
 
     def chain(self, semantic): 
         for gadget in semantic.gadgets: 
@@ -15,6 +15,9 @@ class Semantic:
         self.deepth = self.deepth + 1
 
     def __str__(self):
+        string = "length " + str(self.deepth) + "\n"
         for k,v in self.regs.items():
-            print k, v
+            string += k + " ==> " + str(v)
+            string += "\n"
+        return string
 

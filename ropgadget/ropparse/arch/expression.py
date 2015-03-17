@@ -56,8 +56,6 @@ class Exp:
                 else:
                     return str(self.left)
 
-
-
     	def checkBound(self, regs, insts, addr, operand):
             try:
                 naddr = addr + int(operand)
@@ -71,6 +69,83 @@ class Exp:
     	def reduce(self):
         	pass
 
+        # expr category is defined as follows:
+        #   0--contant 1--mem 2--esp 3--reg 4--regs
+        def getCategory(self):
+            cat = 0
+
+            # check category of left 
+            sub = 0
+            if self.left is None:
+                pass
+            elif isinstance(self.left, Exp):
+                sub = self.left.getCategory()
+            elif self.left == "esp":
+                sub = 2
+            elif not self.isInt(self.left):
+                sub = 3
+            cat = sub
+
+            # check category of right 
+            sub = 0
+            if self.right is None:
+                pass
+            elif isinstance(self.right, Exp):
+                sub = self.right.getCategory()
+            elif self.right == "esp":
+                sub = 2
+            elif not self.isInt(self.right):
+                sub = 3
+            if sub == 3 and cat == 3:
+                cat = 4
+            elif sub > cat:
+                cat = sub
+
+            # check category of condition
+            sub = 0
+            if self.condition is None:
+                pass
+            elif isinstance(self.condition, Exp):
+                sub = self.condition.getCategory()
+            elif self.condition == "esp":
+                sub = 2
+            elif not self.isInt(self.condition):
+                sub = 3
+            if sub == 3 and cat == 3:
+                cat = 4
+            elif sub > cat:
+                cat = sub
+            # check oprator
+            if self.op == '*':
+                if cat == 0:
+                    cat = 1
+            return cat
+
+        # get all regs appeared in this expr
+        def getRegs(self):
+            regs = []
+            if self.left == None:
+                pass
+            elif isinstance(self.left, Exp):
+                regs.extend(self.left.getRegs())
+            elif not self.isInt(self.left):
+                regs.append(self.left)
+
+            if self.right == None:
+                pass
+            elif isinstance(self.right, Exp):
+                regs.extend(self.right.getRegs())
+            elif not self.isInt(self.right):
+                regs.append(self.right)
+
+            if self.condition== None:
+                pass
+            elif isinstance(self.condition, Exp):
+                regs.extend(self.condition.getRegs())
+            elif not self.isInt(self.condition):
+                regs.append(self.condition)
+            return regs
+        
     	def getDest(self):
             if self.op == "=":
                 if isinstance(self.left, Exp):
@@ -81,6 +156,52 @@ class Exp:
 
         def isAssign(self):
             return self.op == "="
+        
+        def isConstant(self):
+            constant = True
+            if isinstance(self.left, Exp):
+                constant &= self.left.isConstant()
+            elif not self.isInt(self.left):
+                constant = False
+
+            if isinstance(self.right, Exp):
+                constant &= self.right.isConstant()
+            elif not self.isInt(self.right):
+                constant = False
+
+            if isinstance(self.condition, Exp):
+                constant &= self.condition.isConstant()
+            elif not self.isInt(self.condition):
+                constant = False
+
+            return constant
+        
+        def equals(self, exp):
+            equal = True
+            if isinstance(self.left, Exp):
+                equal &= self.left.equals(exp.left)
+            else:
+                equal &= self.left == exp.left
+
+            if isinstance(self.right, Exp):
+                equal &= self.right.equals(exp.right)
+            else:
+                equal &= self.right == exp.right
+
+            if isinstance(self.condition, Exp):
+                equal &= self.condition.equals(exp.condition)
+            else:
+                equal &= self.condition == exp.condition
+            return equal
+
+        def isInt(self, string):
+            if string is None:
+                return True 
+            try:
+                int(string)
+                return True
+            except ValueError:
+                return False
 
         def getSrc(self):
             return self.right

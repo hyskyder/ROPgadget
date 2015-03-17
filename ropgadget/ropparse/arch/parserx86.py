@@ -8,6 +8,7 @@
 ##
 from capstone import *
 from expression import Exp
+from semantic import Semantic
 from copy import deepcopy
 class X86:
     FLAG = ["CF", "PF", "AF", "ZF", "SF", "TF", "IF", "DF", "OF"]
@@ -397,7 +398,7 @@ class ROPParserX86:
                     continue
                 print reg, "==>", v
             print
-            formulas.append(regs)
+            formulas.append(Semantic(regs, gadget))
         return formulas
 
 
