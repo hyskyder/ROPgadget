@@ -65,12 +65,11 @@ class X86:
 	    "cmovle": [2, ["operand1 = ( ZF == 1 & SF != OF ) ? operand2 : operand1"], []],
 	    "cmovs": [2, ["operand1 = ( SF == 1 ) ? operand2 : operand1"], []],
 	    "cmovp": [2, ["operand1 = ( PF == 1 ) ? operand2 : operand1"], []],
-	    "xchg": [2, ["operand1 = operand2", "operand2 = operand1"], []],
+#	    "xchg": [2, ["operand1 = operand2", "operand2 = operand1"], []],
 #	    "bswap": [2, ["operand1"], []], # TODO
-	    "xadd": [2, ["operand2 = operand1 + operand2", "operand1 = operand2"], ["CF", "PF", "AF", "SF", "ZF", "OF"]],
-        "cmpxchg": [2, ["temp = sax - operand1", "operand1 = sax - operand1 == 0 ? operand2 : operand1", "sax = sax - operand1 != 0 ? operand1 : sax"],["CF", "PF", "AF", "SF", "ZF", "OF"]],
-	    "push": [1, ["* ssp = operand1", "ssp = ssp - length"], []],
-	    "pop": [1, ["operand1 = * ssp", "ssp = ssp + length"], []],
+#        "cmpxchg": [2, ["temp = sax - operand1", "operand1 = sax - operand1 == 0 ? operand2 : operand1", "sax = sax - operand1 != 0 ? operand1 : sax"],["CF", "PF", "AF", "SF", "ZF", "OF"]],
+	    "push": [1, ["* ssp = operand1"], []],
+	    "pop": [1, ["operand1 = * ssp"], []],
 #	    "in": [2,["operand1 = undefined"], []],
 #	    "out": [2, [], []],
 #        "cwde": [0, ["dx = ax > 0 ? 0 : 0xffff"], []],
@@ -115,32 +114,32 @@ class X86:
         # control transfer
         "ret": [1, ["ssp = ssp + length + operand1"], ["* ssp"]],
         # for call address need to be handle
-        "call": [1, [], ["operand1"]],
+        "call": [1, [], ["* operand1"]],
 #        "int": [1, [], ["undefined"]],
 #        "into": [0, [], ["OF == 1 ? undefined : next"]],
-        # TODO, enter and leave
-	    #"enter": [2, ["*sp = bp", "sp = sp + length", ""], []],
-	    #"leave": [0, [], ["undefined"]],
+#        # TODO, enter and leave
+#	    "enter": [2, ["*sp = bp", "sp = sp + length", ""], []],
+#	    "leave": [0, [], ["undefined"]],
 
-	    "jmp": [1, [], ["operand1"]],
-	    "ja": [1, [], ["CF == 0 & ZF == 0 ? operand1 : next"]],
-	    "jae": [1, [], ["CF == 0 ? operand1 : next"]],
-	    "jb": [1, [] , ["CF == 1 ? operand1 : next"]],
-	    "jbe": [1, [] , ["CF == 1 | ZF == 1 ? operand1 : next"]],
-	    "jc": [1, [], ["CF == 1 ? operand1 : next"]],
-	    "je": [1, [], ["ZF == 1 ? operand1 : next"]],
-	    "jnc": [1, [], ["CF == 0 ? operand1 : next"]],
-	    "jne": [1, [], ["ZF == 0 ? operand1 : next"]],
-	    "jnp": [1, [], ["PF == 0 ? operand1 : next"]],
-	    "jp": [1, [], ["PF == 1 ? operand1 : next"]],
-	    "jg": [1, [], ["ZF == 0 & SF == OF ? operand1 : next"]],
-	    "jge": [1, [], ["SF == OF ? operand1 : next"]],
-	    "jl": [1, [], ["SF != OF ? operand1 : next"]],
-	    "jle": [1, [], ["ZF == 1 | SF != OF ? operand1 : next"]],
-	    "jno": [1, [], ["OF == 0 ? operand1 : next"]],
-	    "jns": [1, [], ["SF == 0 ? operand1 : next"]],
-	    "jo": [1, [], ["OF == 1 ? operand1 : next"]],
-	    "js": [1, [], ["SF == 1 ? operand1 : next"]],
+	    "jmp": [1, [], ["* operand1"]],
+	    "ja": [1, [], ["CF == 0 & ZF == 0 ? * operand1 : next"]],
+	    "jae": [1, [], ["CF == 0 ? * operand1 : next"]],
+	    "jb": [1, [] , ["CF == 1 ? * operand1 : next"]],
+	    "jbe": [1, [] , ["CF == 1 | ZF == 1 ? * operand1 : next"]],
+	    "jc": [1, [], ["CF == 1 ? * operand1 : next"]],
+	    "je": [1, [], ["ZF == 1 ? * operand1 : next"]],
+	    "jnc": [1, [], ["CF == 0 ? * operand1 : next"]],
+	    "jne": [1, [], ["ZF == 0 ? * operand1 : next"]],
+	    "jnp": [1, [], ["PF == 0 ? * operand1 : next"]],
+	    "jp": [1, [], ["PF == 1 ? * operand1 : next"]],
+	    "jg": [1, [], ["ZF == 0 & SF == OF ? * operand1 : next"]],
+	    "jge": [1, [], ["SF == OF ? * operand1 : next"]],
+	    "jl": [1, [], ["SF != OF ? * operand1 : next"]],
+	    "jle": [1, [], ["ZF == 1 | SF != OF ? * operand1 : next"]],
+	    "jno": [1, [], ["OF == 0 ? * operand1 : next"]],
+	    "jns": [1, [], ["SF == 0 ? * operand1 : next"]],
+	    "jo": [1, [], ["OF == 1 ? * operand1 : next"]],
+	    "js": [1, [], ["SF == 1 ? * operand1 : next"]],
         # logic
         "and": [2, ["operand1 = operand1 & operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
 	    "or": [2, ["operand1 = operand1 | operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
@@ -149,18 +148,18 @@ class X86:
         # shift and rotate
         # For SAR, the sign bit is taken care by python
         # Ex, -2 >> 4 = -1,  2 >> 4 = 0
-        "sar": [2, ["operand1 = operand1 >> operand2"] , ["CF", "OF", "SF", "ZF", "PF"]],
-        "shr": [2, ["operand1 = operand1 >> operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
+#        "sar": [2, ["operand1 = operand1 >> operand2"] , ["CF", "OF", "SF", "ZF", "PF"]],
+#        "shr": [2, ["operand1 = operand1 >> operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
 
-        "sal": [2, ["operand1 = operand1 << operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
-        "shl": [2, ["operand1 = operand1 << operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
-        #	    "shrd": [2],
-        #	    "shld": [2],
-        #	    "ror": [2],
-        #	    "rol": [2],
-        #	    "rcr": [2],
-        #	    "rcl": [2],
-        #            # bit and bytes
+#        "sal": [2, ["operand1 = operand1 << operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
+#        "shl": [2, ["operand1 = operand1 << operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
+#        "shrd": [2],
+#        "shld": [2],
+#        "ror": [2],
+#        "rol": [2],
+#        "rcr": [2],
+#        "rcl": [2],
+       # bit and bytes
 #        "bt": [2, [""], ["CF = "]],
 #        "bts": [],
 #        "btr": [],
@@ -185,12 +184,12 @@ class X86:
         "setpo": [1, ["operand1 = PF == 0 ? 0xff : operand1"], []],
         "test": [2, ["temp = operand1 & operand2"], ["OF = 0", "CF = 0", "SF", "ZF", "PF"]],
         # segment
-        #            "lds": [0],
-        #	    "les": [0],
-        #	    "lfs": [0],
-        #	    "lgs": [0],
-        #	    "lss": [0],
-        #            # others
+#       "lds": [0],
+#	    "les": [0],
+#	    "lfs": [0],
+#	    "lgs": [0],
+#	    "lss": [0],
+#            # others
         "lea": [2, ["operand1 = & operand2"], []],
         "nop": [0, [], []],
 #        "xlatb": [0, ["al = [ sbx + al ]"],[]],
@@ -213,146 +212,16 @@ class X86:
         "rep": [0, [], []],
         "repz": [0, [], []],
         "repnz": [0, [], []],
-#        "insb": [2, ["operand1 = undefined"], []],
-#        "insw": [2,["operand1 = undefined"], []],
-#        "insd": [2,["operand1 = undefined"], []]
-#
-#        "outsb": [0, [], []],
-#        "outsw": [0, [], []],
-#        "outsd": [0, [], []],
-#        # floating point ins
-#        "fld": [],
-#        "fst": [],
-#        "fstp": [],
-#        "fild": [],
-#        "fist": [],
-#        "fistp": [],
-#        "fbld": [],
-#        "fbstp": [],
-#        "fxch": [],
-#        "fcmove": [],
-##        "fcmovne": [],
-#        "fcmovb": [],
-#        "fcmovbe": [],
-#        "fcmovnb": [],
-#        "fcmovnbe": [],
-#        "fcmovu": [],
-#        "fcmovnu": [],
-#        "fadd": [],
-#        "faddp": [],
-#        "fiadd": [],
-#        "fsub": [],
-#        "fsubp": [],
-#        "fisub": [],
-#        "fsubr": [],
-#        "fsubrp": [],
-#        "fsubr": [],
-#        "fmul": [],
-#        "fmulp": [],
-#        "fimul": [],
-#        "fdiv": [],
-#        "fdivp": [],
-#        "fidiv": [],
-#        "fdivr": [],
-#        "fdivrp": [],
-#        "fidivr": [],
-#        "fprem": [],
-#        "fpremi": [],
-#        "fabs": [],
-#        "fchs": [],
-#        "frndint": [],
-#        "fscale": [],
-#        "fsqrt": [],
-#        "fxtract": [],
-#        "fcom": [],
-#        "fcomp": [],
-#        "fcmopp": [],
-#        "fucom": [],
-#        "fucomp": [],
-#        "fucompp": [],
-#        "ficom": [],
-#        "ficomp": [],
-#        "fcomi": [],
-#        "fucomi": [],
-#        "fcomip": [],
-#        "fucomp": [],
-#        "ftst": [],
-#        "fxam": [],
-#        # transcendental
-#        "fsin": [],
-#        "fcos": [],
-#        "fsincos": [],
-#        "fptan": [],
-#        "fpatan": [],
-#        "f2xm1": [],
-#        "fyl2x": [],
-#        "fyl2xp1": [],
-#        # load constant
-#        "fld1": [],
-#        "fldz": [],
-#        "fldpi": [],
-#        "fldl2e": [],
-#        "fldln2": [],
-#        "fldl2t": [],
-#        "fldlg2": [],
-#        # FPU control
-#        "fincstp": [],
-#        "fdecstp": [],
-#        "ffree": [],
-#        "finit": [],
-#        "fninit": [],
-#        "fclex": [],
-#        "fnclex": [],
-#        "fstcw": [],
-#        "fnstcw": [],
-#        "fldcw": [],
-#        "fstenv": [],
-#        "fnstenv": [],
-#        "fldenv": [],
-#        "fsave": [],
-#        "fnsave": [],
-#        "frstor": [],
-#        "fstsw": [],
-#        "fnstsw": [],
-#        "wait": [],
-#        "fnop": [],
-#        # system instructions
-#        "lgdt": [],
-#        "sgdt": [],
-#        "lldt": [],
-#        "sldt": [],
-#        "ltr": [],
-#        "str": [],
-#        "lidt": [],
-#        "sidt": [],
-#        #"mov": [],
-#        "lmsw": [],
-#        "smsw": [],
-#        "clts": [],
-#        "arpl": [],
-#        "lar": [],
-#        "lsl": [],
-#        "verr": [],
-#        "verw": [],
-#        #"mov": [],
-#        "invd": [],
-#        "wbinvd": [],
-#        "invlpg": [],
-#        "lock": [],
-#        "hlt": [],
-#        "rsm": [],
-#        "rdmsr": [],
-#        "wrmsr": [],
-#        "rdpmc": [],
-#        "rdtsc": []
 }
 class ROPParserX86:
     def __init__(self, gadgets, mode):
         self.gadgets = gadgets
         self.mode = mode
+        self.aligned = 0
         if mode == CS_MODE_32:
             self.regs = X86.regs32 + X86.FLAG
             self.Tregs = X86.Tregs32
+            self.aligned = 4
             self.wrap = {"ssp":"esp", "ip":"eip", "length":"4"}
             # wrap the formula with arch_specified regs
             # Ex: update sp with esp , ip with eip, length with 4
@@ -369,6 +238,7 @@ class ROPParserX86:
         else:
             self.regs = X86.regs64 + X86.FLAG
             self.Tregs = X86.Tregs64
+            self.aligned = 8
             self.wrap = {"ssp":"rsp", "ip":"rip", "length":"8"}
             for o, n in self.wrap.items():
                 for k, v in X86.insn.items():
@@ -380,7 +250,6 @@ class ROPParserX86:
                     for i, s in enumerate(v[2]):
                         v[2][i] = s.replace(o,n)
                         X86.insn.update({k:v})
-
 
     def parse(self):
         formulas = []
@@ -406,7 +275,7 @@ class ROPParserX86:
         if i == len(insts):
             return regs
         # all control transfer dst must bewteen low and high addr
-        addr = insts[i]["addr"]
+        addr = insts[i]["vaddr"]
         prefix = insts[i]["mnemonic"]
         op_str = insts[i]["op_str"]
         if prefix not in X86.insn.keys():
@@ -480,64 +349,6 @@ class ROPParserX86:
             operand1 = None
             operand2 = None
             # handle special cases
-            if prefix == "imul" or prefix == "mul":
-                exps = {}
-                flags = {}
-                if op_str.count(",") == 0:
-                    operand1 = Exp.parseOperand(op_str.split(",")[0], regs, self.Tregs)
-                    if operand1.OperandSize() == 8:
-                        mul = Exp("al", "*", operand1)
-                        exp.update({"ax":mul})
-                        flags.update({"CF":Exp("1", "condition", "0", Exp("ax", "!=", "al"))})
-                        flags.update({"OF":Exp("1", "condition", "0", Exp("ax", "!=", "al"))})
-                        if prefix == "imul":
-                            flags.update({"SF":Exp("7", "bits", "7", mul)})
-                    elif operand1.OperandSize() == 16:
-                        mul = Exp("ax", "*", operand1)
-                        exp.update({"dx":Exp("16", "bits", "31", mul)})
-                        exp.update({"ax":Exp("0", "bits", "15", mul)})
-                        flags.update({"CF":Exp("1", "condition", "0", Exp("dx", "!=", "0"))})
-                        flags.update({"OF":Exp("1", "condition", "0", Exp("dx", "!=", "0"))})
-                        if prefix == "imul":
-                            flags.update({"SF":Exp("15", "bits", "15", mul)})
-                    elif operand1.OperandSize() == 32:
-                        mul = Exp("eax", "*", operand1)
-                        exp.update({"edx":Exp("32", "bits", "63", mul)})
-                        exp.update({"eax":Exp("0", "bits", "31", mul)})
-                        flags.update({"CF":Exp("1", "condition", "0", Exp("edx", "!=", "0"))})
-                        flags.update({"OF":Exp("1", "condition", "0", Exp("edx", "!=", "0"))})
-                        if prefix == "imul":
-                            flags.update({"SF":Exp("31", "bits", "31", mul)})
-                    else:
-                        mul = Exp("rax", "*", operand1)
-                        exp.update({"rdx":Exp("64", "bits", "127", mul)})
-                        exp.update({"rax":Exp("0", "bits", "63", mul)})
-                        flags.update({"CF":Exp("1", "condition", "0", Exp("rdx", "!=", "0"))})
-                        flags.update({"OF":Exp("1", "condition", "0", Exp("rdx", "!=", "0"))})
-                        if prefix == "imul":
-                            flags.update({"SF":Exp("63", "bits", "63", mul)})
-                elif op_str.count(",") == 1:
-                    operand1 = Exp.parseOperand(op_str.split(",")[0], regs, self.Tregs)
-                    operand2 = Exp.parseOperand(op_str.split(",")[1], regs, self.Tregs)
-                    size = operand1.OperandSize()
-                    mul = Exp(operand1, "*", operand2)
-                    tru = Exp("0", "bits", str(size-1), mul)
-                    exp.update({str(operand1):tru})
-                    flags.update({"SF":Exp(str(size-1), "bits", str(size-1), mul)})
-                    flags.update({"CF":Exp("1", "condition", "0", Exp(mul, "!=", tru))})
-                    flags.update({"OF":Exp("1", "condition", "0", Exp(mul, "!=", tru))})
-                else:
-                    operand1 = Exp.parseOperand(op_str.split(",")[0], regs, self.Tregs)
-                    operand2 = Exp.parseOperand(op_str.split(",")[1], regs, self.Tregs)
-                    operand3 = Exp.parseOperand(op_str.split(",")[2], regs, self.Tregs)
-                    size = operand1.OperandSize()
-                    mul = Exp(operand2, "*", operand3)
-                    tru = Exp("0", "bits", str(size-1), mul)
-                    exp.update({str(operand1):tru})
-                    flags.update({"SF":Exp(str(size-1), "bits", str(size-1), mul)})
-                    flags.update({"CF":Exp("1", "condition", "0", Exp(mul, "!=", tru))})
-                    flags.update({"OF":Exp("1", "condition", "0", Exp(mul, "!=", tru))})
-                # TODO
             if ins[0] == 1:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
             elif ins[0] == 2:
@@ -595,21 +406,3 @@ if __name__ == '__main__':
         gadgets.append(gadget)
     p = ROPParserX86(gadgets, CS_MODE_32)
     formulas = p.parse()
-#
-#    binarys = [b"\x0F\x42\xD8\xFF\xC3\x83\xD3\x3C\xC3",
-#                b"\xF9\x48\x0F\x42\xC3\x48\x83\xE8\x01\xC3"]
-#    gadgets = []
-#    md = Cs(CS_ARCH_X86, CS_MODE_64)
-#    md.detail = True
-#    for binary in binarys:
-#        gadget = []
-#        for decode in md.disasm(binary, 0x1000):
-#            inst = {}
-#            inst.update({"mnemonic": decode.mnemonic})
-#            inst.update({"op_str": decode.op_str})
-#            inst.update({"addr": decode.address})
-#            gadget.append(inst)
-#        gadgets.append(gadget)
-#    p = ROPParserX86(gadgets, CS_MODE_64)
-#    formulas = p.parse()
-#

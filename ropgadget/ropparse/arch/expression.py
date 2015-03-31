@@ -26,7 +26,7 @@ class Exp:
                 A $ B : C is defined as take the Bth bit to Cth bit of A
 	'''
 	# operator precedence, unary always first
-	unaryOp = ["-", "*", "+", "&", "~", "C", "P", "S", "Z", "A", "O", "8B", "16B", "32B"]
+	unaryOp = ["-", "*", "+", "&", "~", "C", "P", "S", "Z", "A", "O"]
 	binOp = {"*":1, "%":1, "/":1, "+":2, "-":2, ">>":3, "<<":3, "<":4, "<=":4, ">":4, ">=":4, "==":5, "!=":5, "&":6, "^":7, "|":8, "&&":9, "||":10, "?":11, "$":11, "=":12}
 	def __init__(self, left, op=None, right=None, condition=None):
 			if condition != None:
@@ -66,62 +66,54 @@ class Exp:
             except ValueError:
                 return -1
 
-    	def reduce(self):
-        	pass
+        # return True if exp is Mem determined by esp only
+        def isControl(self):
+            if self.condition is not None:
+                return self.condition.isControl()
+
+            if self.getCategory() != 3:
+                return False
+
+            if self.right is None:
+                if self.op is not None and self.op == "*":
+                    return len(self.getRegs()) == 1 and (self.getRegs()[0] == "esp" or self.getRegs()[0] == "rsp")
+                else:
+                    return self.left.isControl()
+            else:
+                return (exp.left.isControl() and exp.right.getCategory() == 0 ) or (exp.right.isControl() and exp.left.getCategory() == 0)
 
         # expr category is defined as follows:
-        #   0--contant 1--mem 2--esp 3--reg 4--regs
+        # 0 == Constant, 1 == Reg, 2 == Regs, 3 == Mem, 4 == Mem + Regs
         def getCategory(self):
-            cat = 0
+            if self.condition is not None:
+                return self.condition.getCategory()
 
-            # check category of left 
-            sub = 0
-            if self.left is None:
-                pass
-            elif isinstance(self.left, Exp):
-                sub = self.left.getCategory()
-            elif self.left == "esp":
-                sub = 2
-            elif not self.isInt(self.left):
-                sub = 3
-            cat = sub
+            left = 0
+            right = 0
+            if not isinstance(self.left, Exp):
+                if not self.isInt(self.left):
+                    left = 1
+            else:
+                left = self.left.getCategory()
 
-            # check category of right 
-            sub = 0
+            if not isinstance(self.right, Exp):
+                if not self.isInt(self.right):
+                    right = 1
+            else:
+                right = self.right.getCategory()
+
             if self.right is None:
-                pass
-            elif isinstance(self.right, Exp):
-                sub = self.right.getCategory()
-            elif self.right == "esp":
-                sub = 2
-            elif not self.isInt(self.right):
-                sub = 3
-            if sub == 3 and cat == 3:
-                cat = 4
-            elif sub > cat:
-                cat = sub
+                if self.op == '&':
+                    return left
+                elif self.op == '*':
+                    return 3
 
-            # check category of condition
-            sub = 0
-            if self.condition is None:
-                pass
-            elif isinstance(self.condition, Exp):
-                sub = self.condition.getCategory()
-            elif self.condition == "esp":
-                sub = 2
-            elif not self.isInt(self.condition):
-                sub = 3
-            if sub == 3 and cat == 3:
-                cat = 4
-            elif sub > cat:
-                cat = sub
-            # check oprator
-            if self.op == '*':
-                if cat == 0:
-                    cat = 1
-            return cat
+            if left < 3 and right < 3:
+                if left == 1 and right == 1:
+                    return 2
+                return max(left, right)
+            return max(4, left + right)
 
-        # get all regs appeared in this expr
         def getRegs(self):
             regs = []
             if self.left == None:
@@ -144,7 +136,7 @@ class Exp:
                 regs.extend(self.condition.getRegs())
             elif not self.isInt(self.condition):
                 regs.append(self.condition)
-            return regs
+            return list(set(regs))
         
     	def getDest(self):
             if self.op == "=":
@@ -178,6 +170,8 @@ class Exp:
         
         def equals(self, exp):
             equal = True
+            if not isinstance(exp, Exp):
+                return False
             if isinstance(self.left, Exp):
                 equal &= self.left.equals(exp.left)
             else:
@@ -217,21 +211,26 @@ class Exp:
 
 
         def binding(self, mapping):
-            if isinstance(self.left, Exp):
-                self.left.binding(mapping)
-            if isinstance(self.right, Exp):
-                self.right.binding(mapping)
-            if isinstance(self.condition, Exp):
-                self.condition.binding(mapping)
-
+            left = True 
+            right = True
+            condition = True
             for k,v in mapping.items():
                 if k == self.left:
                     self.left = v
+                    left = False
                 if k == self.right:
                     self.right = v
+                    right = False
                 if k == self.condition:
                     self.condition = v
+                    condition = False
 
+            if left and isinstance(self.left, Exp):
+                self.left.binding(mapping)
+            if right and isinstance(self.right, Exp):
+                self.right.binding(mapping)
+            if condition and isinstance(self.condition, Exp):
+                self.condition.binding(mapping)
 
         @staticmethod
         def parseOperand(string, regs, Tregs):
@@ -376,7 +375,7 @@ if __name__ == '__main__':
     exps = Exp.parse(["operand1 = ( operand2 - 1 ) $ 8 : 15", "esp = esp + 4"], {"operand1":Exp("ax"), "operand2":Exp("ecx")})
     for k,v in exps.items():
         print k, "==>", v
-    exps = Exp.parse(["operand1 = operand2 $ 0 : 15"], {"operand1":Exp("eax"), "operand2":Exp("ax")})
+    exps = Exp.parse(["operand1 = operand2 $ 0 : 15"], {"operand1":Exp("ax"), "operand2":Exp("eax")})
     for k,v in exps.items():
         print k, "==>", v
 
