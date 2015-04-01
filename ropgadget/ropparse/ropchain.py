@@ -17,7 +17,7 @@ class ROPChain:
         # gadgets writes to mem
         self.mems = []
         self.semantics = []
-        self.deepth = 1
+        self.deepth = 0
         self.solver = Solver()
         self.z3Regs= {}
         self.cond = {}
@@ -85,7 +85,7 @@ class ROPChain:
                 if regs[k].getCategory() == 3 and regs[k].isControl():
                     continue
                 elif regs[k].getCategory() == 0:
-                    if str(simplify(IntVal(self.Convert(targets[k]() == IntVal(self.Convert(regs[k])))) == "True":
+                    if str(simplify( IntVal(self.Convert(targets[k])) == IntVal(self.Convert(regs[k])))) == "True":
                         continue
                     return False
                 else:
@@ -105,7 +105,7 @@ class ROPChain:
         if str(self.solver.check()) == "sat":
             res = self.solver.model()
             for r in res:
-                if not str(r) in defined and r != "dst":
+                if not str(r) in defined and r != "sip":
                     self.solver.pop()
                     return False
             self.solver.pop()
@@ -268,7 +268,7 @@ class ROPChain:
     def Category(self):
         temp = []
         for semantic in self.semantics:
-            if semantic.regs["dst"].isControl():
+            if semantic.regs["sip"].isControl():
                 # return address is somewhere in esp
                 for reg, val in semantic.regs.items():
                     if not reg in self.z3Regs:
@@ -277,9 +277,12 @@ class ROPChain:
                     self.AddGadget(reg, val, semantic)
             else:
                 temp.append(semantic)
-        # fix dst
+        print "gadgets with destination need to be fixed ", len(temp)
+        print "gadgets can be directly used", len(self.semantics) - len(temp)
+        # fix sip
+        ''' TODO
         for semantic in temp:
-            regs = semantic.regs["dst"].getRegs()
+            regs = semantic.regs["sip"].getRegs()
             if len(regs) == 1:
                 for chain in self.categories[regs[0]][0]:
                     dup = deepcopy(chain)
@@ -287,8 +290,8 @@ class ROPChain:
                     for reg, val in dup.regs.items():
                         self.categories[reg][val.getCategory()].append(val)
             else:
-                # TODO for multiple regs
                 pass
+        ''' 
         # prechain
         print "prechaining with deepth = ", self.deepth
         for i in range(self.deepth):
@@ -318,17 +321,18 @@ class ROPChain:
             for k in self.categories[reg]:
                 print reg, " ======> ", k , " with ", len(self.categories[reg][k])
                 for s in self.categories[reg][k]:
-                    print s
+                    #print s
+                    pass
 
 if __name__ == '__main__':
-    regs = {"dst":Exp("esp", "*"), "eax": Exp("1")}
+    regs = {"sip":Exp("ssp", "*"), "eax": Exp("1")}
     s1 = Semantic(regs, {"vaddr":0x1})
-    regs2 = {"dst":Exp("esp", "*"), "ebx": Exp("eax")}
+    regs2 = {"sip":Exp("ssp", "*"), "ebx": Exp("eax")}
     s2 = Semantic(regs2, {"vaddr":0x2})
     exp = Exp("eax", "+", "ebx")
-    regs3 = {"dst":Exp(Exp("esp", "+", 4), "*"), "ecx": exp}
+    regs3 = {"sip":Exp(Exp("ssp", "+", 4), "*"), "ecx": exp}
     s3 = Semantic(regs3, {"vaddr":0x3})
-    regs4 = {"dst":Exp("esp", "*"), "ebx": Exp("1")}
+    regs4 = {"sip":Exp("ssp", "*"), "ebx": Exp("1")}
     s4 = Semantic(regs4, None)
     s = [s1, s2, s3]
     r = ROPChain(None, None)

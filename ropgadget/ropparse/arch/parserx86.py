@@ -65,44 +65,27 @@ class X86:
 	    "cmovle": [2, ["operand1 = ( ZF == 1 & SF != OF ) ? operand2 : operand1"], []],
 	    "cmovs": [2, ["operand1 = ( SF == 1 ) ? operand2 : operand1"], []],
 	    "cmovp": [2, ["operand1 = ( PF == 1 ) ? operand2 : operand1"], []],
-#	    "xchg": [2, ["operand1 = operand2", "operand2 = operand1"], []],
-#	    "bswap": [2, ["operand1"], []], # TODO
-#        "cmpxchg": [2, ["temp = sax - operand1", "operand1 = sax - operand1 == 0 ? operand2 : operand1", "sax = sax - operand1 != 0 ? operand1 : sax"],["CF", "PF", "AF", "SF", "ZF", "OF"]],
+
 	    "push": [1, ["* ssp = operand1"], []],
 	    "pop": [1, ["operand1 = * ssp"], []],
-#	    "in": [2,["operand1 = undefined"], []],
-#	    "out": [2, [], []],
-#        "cwde": [0, ["dx = ax > 0 ? 0 : 0xffff"], []],
-#        "cdq": [0,["edx = eax > 0 ? 0 : 0xffffffff"],[]],
+
         "movsx": [2, ["operand1 = operand2 > 0 ? operand2 : operand2 & 0xffffffffffffffff"], []],
         "movzx": [2, ["operand1 = 0 & operand2"], []],
-
-#       flag control instuctions
+        # flag control instuctions
 		"stc": [0, [], ["CF = 1"]],
 	    "clc": [0, [], ["CF = 0"]],
 	    "cmc": [0, [], ["CF = ~ CF"]],
 	    "cld": [0, [], ["DF = 0"]],
 	    "std": [0, [], ["DF = 1"]],
-#	    "lahf": [0],
-#	    "shf": [0],
-#	    "pushfq": [1],
-#	    "popfq": [1],
 	    "sti": [0, [], ["IF = 1"]],
 	    "cli": [0, [], ["IF = 0"]],
         # arithmetic
         "cmp": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-#	    "daa": [1],
-#	    "das": [1],
-#	    "aaa": [1],
-#	    "aas": [1],
-#	    "aam": [1],
-#	    "aad":[1],
 	    "add": [2, ["operand1 = operand1 + operand2"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
 	    "adc": [2, ["operand1 = operand1 + operand2 + CF"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
 	    "sub": [2, ["operand1 = operand1 - operand2"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
 	    "sbb": [2, ["operand1 = operand1 - operand2 - CF"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
         # FIXME imul need specially atteition
-        # NOTE those 4 cases are handled manully
 #	    "imul": [3, [""]],
 #        "mul": [1, []],
 #        "idiv": [1, ["sax = sdx:sax / operand1", "sdx = sdx:sax % operand1"], []],
@@ -112,42 +95,35 @@ class X86:
 	    "dec": [1, ["operand1 = operand1 - 1"], ["OF", "SF", "ZF", "AF", "PF"]],
 	    "neg": [1, ["operand1 = - operand1"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
         # control transfer
-        "ret": [1, ["ssp = ssp + length + operand1"], ["* ssp"]],
-        # for call address need to be handle
+        "ret": [1, [], ["* ssp"]],
+
         "call": [1, [], ["* operand1"]],
-#        "int": [1, [], ["undefined"]],
-#        "into": [0, [], ["OF == 1 ? undefined : next"]],
-#        # TODO, enter and leave
-#	    "enter": [2, ["*sp = bp", "sp = sp + length", ""], []],
-#	    "leave": [0, [], ["undefined"]],
 
 	    "jmp": [1, [], ["* operand1"]],
-	    "ja": [1, [], ["CF == 0 & ZF == 0 ? * operand1 : next"]],
-	    "jae": [1, [], ["CF == 0 ? * operand1 : next"]],
-	    "jb": [1, [] , ["CF == 1 ? * operand1 : next"]],
-	    "jbe": [1, [] , ["CF == 1 | ZF == 1 ? * operand1 : next"]],
-	    "jc": [1, [], ["CF == 1 ? * operand1 : next"]],
-	    "je": [1, [], ["ZF == 1 ? * operand1 : next"]],
-	    "jnc": [1, [], ["CF == 0 ? * operand1 : next"]],
-	    "jne": [1, [], ["ZF == 0 ? * operand1 : next"]],
-	    "jnp": [1, [], ["PF == 0 ? * operand1 : next"]],
-	    "jp": [1, [], ["PF == 1 ? * operand1 : next"]],
-	    "jg": [1, [], ["ZF == 0 & SF == OF ? * operand1 : next"]],
-	    "jge": [1, [], ["SF == OF ? * operand1 : next"]],
-	    "jl": [1, [], ["SF != OF ? * operand1 : next"]],
-	    "jle": [1, [], ["ZF == 1 | SF != OF ? * operand1 : next"]],
-	    "jno": [1, [], ["OF == 0 ? * operand1 : next"]],
-	    "jns": [1, [], ["SF == 0 ? * operand1 : next"]],
-	    "jo": [1, [], ["OF == 1 ? * operand1 : next"]],
-	    "js": [1, [], ["SF == 1 ? * operand1 : next"]],
+	    "ja": [1, [], ["CF == 0 & ZF == 0 ? * operand1 : 0"]],
+	    "jae": [1, [], ["CF == 0 ? * operand1 : 0"]],
+	    "jb": [1, [] , ["CF == 1 ? * operand1 : 0"]],
+	    "jbe": [1, [] , ["CF == 1 | ZF == 1 ? * operand1 : 0"]],
+	    "jc": [1, [], ["CF == 1 ? * operand1 : 0"]],
+	    "je": [1, [], ["ZF == 1 ? * operand1 : 0"]],
+	    "jnc": [1, [], ["CF == 0 ? * operand1 : 0"]],
+	    "jne": [1, [], ["ZF == 0 ? * operand1 : 0"]],
+	    "jnp": [1, [], ["PF == 0 ? * operand1 : 0"]],
+	    "jp": [1, [], ["PF == 1 ? * operand1 : 0"]],
+	    "jg": [1, [], ["ZF == 0 & SF == OF ? * operand1 : 0"]],
+	    "jge": [1, [], ["SF == OF ? * operand1 : 0"]],
+	    "jl": [1, [], ["SF != OF ? * operand1 : 0"]],
+	    "jle": [1, [], ["ZF == 1 | SF != OF ? * operand1 : 0"]],
+	    "jno": [1, [], ["OF == 0 ? * operand1 : 0"]],
+	    "jns": [1, [], ["SF == 0 ? * operand1 : 0"]],
+	    "jo": [1, [], ["OF == 1 ? * operand1 : 0"]],
+	    "js": [1, [], ["SF == 1 ? * operand1 : 0"]],
         # logic
         "and": [2, ["operand1 = operand1 & operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
 	    "or": [2, ["operand1 = operand1 | operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
 	    "xor": [2, ["operand1 = operand1 ^ operand2"], ["CF","OF", "SF", "ZF", "PF"]],
 	    "not": [1, ["operand1 = ~ operand1"], []],
         # shift and rotate
-        # For SAR, the sign bit is taken care by python
-        # Ex, -2 >> 4 = -1,  2 >> 4 = 0
 #        "sar": [2, ["operand1 = operand1 >> operand2"] , ["CF", "OF", "SF", "ZF", "PF"]],
 #        "shr": [2, ["operand1 = operand1 >> operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
 
@@ -184,34 +160,25 @@ class X86:
         "setpo": [1, ["operand1 = PF == 0 ? 0xff : operand1"], []],
         "test": [2, ["temp = operand1 & operand2"], ["OF = 0", "CF = 0", "SF", "ZF", "PF"]],
         # segment
-#       "lds": [0],
-#	    "les": [0],
-#	    "lfs": [0],
-#	    "lgs": [0],
-#	    "lss": [0],
-#            # others
+        # others
         "lea": [2, ["operand1 = & operand2"], []],
         "nop": [0, [], []],
-#        "xlatb": [0, ["al = [ sbx + al ]"],[]],
         # string operation
         "movsb": [2, ["operand1 = operand2"], []],
         "movsd": [2, ["operand1 = operand2"], []],
         "movsw": [2, ["operand1 = operand2"], []],
-        "cmpsb": [2, ["operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "cmpsw": [2, ["operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "cmpsd": [2, ["operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "scasb": [2, ["operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "scasw": [2, ["operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "scasd": [2, ["operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "lodsb": [2, ["operand1 = operand2"], []],
+        "cmpsb": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+        "cmpsw": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+        "cmpsd": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+        "scasb": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+        "scasw": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+        "scasd": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+        "lodsb": [2, ["temp = operand1 = operand2"], []],
         "lodsw": [2, ["operand1 = operand2"], []],
         "lodsd": [2, ["operand1 = operand2"], []],
         "stosb": [2, ["operand1 = operand2"], []],
         "stosw": [2, ["operand1 = operand2"], []],
         "stosd": [2, ["operand1 = operand2"], []],
-        "rep": [0, [], []],
-        "repz": [0, [], []],
-        "repnz": [0, [], []],
 }
 class ROPParserX86:
     def __init__(self, gadgets, mode):
@@ -222,40 +189,17 @@ class ROPParserX86:
             self.regs = X86.regs32 + X86.FLAG
             self.Tregs = X86.Tregs32
             self.aligned = 4
-            self.wrap = {"ssp":"esp", "ip":"eip", "length":"4"}
-            # wrap the formula with arch_specified regs
-            # Ex: update sp with esp , ip with eip, length with 4
-            for o, n in self.wrap.items():
-                for k, v in X86.insn.items():
-                    if len(v) < 3:
-                        continue
-                    for i, s in enumerate(v[1]):
-                        v[1][i] = s.replace(o,n)
-                        X86.insn.update({k:v})
-                    for i, s in enumerate(v[2]):
-                        v[2][i] = s.replace(o,n)
-                        X86.insn.update({k:v})
         else:
             self.regs = X86.regs64 + X86.FLAG
             self.Tregs = X86.Tregs64
             self.aligned = 8
-            self.wrap = {"ssp":"rsp", "ip":"rip", "length":"8"}
-            for o, n in self.wrap.items():
-                for k, v in X86.insn.items():
-                    if len(v) < 3:
-                        continue
-                    for i, s in enumerate(v[1]):
-                        v[1][i] = s.replace(o,n)
-                        X86.insn.update({k:v})
-                    for i, s in enumerate(v[2]):
-                        v[2][i] = s.replace(o,n)
-                        X86.insn.update({k:v})
 
     def parse(self):
         formulas = []
         for gadget in self.gadgets:
-            regs = {}
+            regs = {"ssp": Exp("ssp")}
             regs = self.parseInst(regs, gadget, 0)
+            '''
             print "================================="
             print "Gadget string:"
             for inst in gadget:
@@ -263,11 +207,14 @@ class ROPParserX86:
             print
             print "Gadget semantic:"
             for reg, v in regs.items():
-                if reg in X86.FLAG:
-                    continue
                 print reg, "==>", v
             print
+            '''
+            if len(regs) == 0:
+                continue
             formulas.append(Semantic(regs, gadget))
+        print "================================="
+        print "Unique gadgets parsed ", len(formulas)
         return formulas
 
 
@@ -284,107 +231,82 @@ class ROPParserX86:
         ins = X86.insn.get(prefix)
         if prefix in X86.Control:
             # control transfer ins
-            operand1 = None
-            operands = {}
-            if prefix == "call":
-                # call reg
+            if prefix in ["ret", "call"]:
+                operand1 = None
                 operand1 = Exp.parseOperand(op_str.split(" ")[0], regs, self.Tregs)
-                operands.update({"operand1":operand1})
                 dst = Exp.parseExp(ins[2][0].split())
-                if isinstance(dst, Exp):
-                    regs.update({"dst":dst.binding(regs)})
+                if operand1 is None:
+                    dst.binding({"operand1":0})
                 else:
-                    regs.update({"dst":dst})
+                    dst.binding({"operand1":operand1})
+                regs.update({"sip":dst})
+                # only ret inst can modify ssp
+                if prefix == "ret":
+                    ssp = regs["ssp"]
+                    ssp = Exp(ssp, "-", self.aligned)
+                    if operand1 is not None:
+                        ssp = Exp(ssp, "-", operand1)
+                    regs.update({"ssp":ssp})
                 return regs
-            # only ret inst can modify other regs
-            if prefix == "ret":
-                operand1 = Exp.parseOperand(op_str.split(" ")[0], regs, self.Tregs)
-                if operand1 != None:
-                    operands.update({"operand1":operand1})
-                else:
-                    operands.update({"operand1":"0"})
-                exps = Exp.parse(ins[1], operands)
-                for k, v in exps.items():
-                    regs.update({k:v})
-                dst = Exp.parseExp(ins[2][0].split())
-                regs.update({"dst":dst})
-                return regs
-            print prefix
-            dst = Exp.parseExp(ins[2][0].split())
-            # handle conditional jmp
-            if prefix != "jmp":
-                # dup all the exps on the condition, then handle the rest
-                operand1 = Exp.parseOperand(op_str.split(" ")[0], regs, self.Tregs)
-                con = dst.getCondition()
-                regs1 = deepcopy(regs)
-                index = dst.checkBound(regs, insts, addr, str(operand1))
-                if index != -1:
-                    regs = self.parseInst(regs, insts, index)
-                else:
-                    regs.update({"dst": Exp(operand1, "+", addr)})
 
-                index = i + 1
-                regs1 = self.parseInst(regs1, insts, index)
-                r = {}
-                for k,v in regs.items():
-                    r[k] = None
-                for k,v in regs1.items():
-                    r[k] = None;
-                for k,v in r.items():
-                    left = k
-                    if k in regs.keys():
-                        left = regs[k]
-                    right = k
-                    if k in regs1.keys():
-                        right = regs1[k]
-                    r[k] = Exp(left, "condition", right, con)
-                return r
-            else:
-                # for direct jmp, it depends on the address
-                operand1 = Exp.parseOperand(op_str.split(" ")[0], regs, self.Tregs)
-                regs.update({"dst":operand1})
-                return regs
+            # handle jmp
+            operand1 = Exp.parseOperand(op_str.split(" ")[0], regs, self.Tregs)
+            dst = Exp.parseExp(ins[2][0].split())
+            dst.binding({"operand1":operand1})
+            regs.update({"sip": dst})
+            return regs
         else:
 			# computing ins
             operand1 = None
             operand2 = None
+            operands = {}
             # handle special cases
             if ins[0] == 1:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
+                operands.update({"operand1":operand1})
             elif ins[0] == 2:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
                 operand2 = Exp.parseOperand(op_str.split(", ")[1], regs, self.Tregs)
-                # contruct all exps based on the instruction
-            operands = {}
-            if operand1 != None:
                 operands.update({"operand1":operand1})
-            if operand2 != None:
                 operands.update({"operand2":operand2})
-            flagExp = Exp("flag")
-            exps = Exp.parse(ins[1], operands, flagExp)
-
-            # evaluate flag regs base on first exp
-            if len(ins[2]) != 0:
-                f = Exp.parse(ins[2], operands)
-                for k,v in f.items():
-                    # exp indicates this flag is directly set instead of depending on the first exp
-                    # "CF = 1"  or "CF"
-                    if k != str(v):
-                        regs.update({k:v})
+            # contruct all exps based on the instruction
+            if len(ins[1]) > 0:
+                exps = Exp.parse(ins[1][0], operands)
+                for reg, val in exps.items():
+                    if reg == "temp":
+                        # temp variable, no need to assign
+                        continue
+                    dst = Exp.parseOperand(op_str.split(", ")[0], {}, self.Tregs)
+                    if str(dst) in self.regs:
+                        # GPRs
+                        regs.update({str(dst):val})
+                    elif str(dst) in self.Tregs:
+                        # subpart of GPRs
+                        temp = Exp.parse(self.Tregs[dst][1], {})
+                        for k, v in temp.items():
+                            v.binding(regs)
+                            v.binding({{str(dst):val}})
+                            regs.update({k:v})
                     else:
-                        regs.update({k:Exp(flagExp,v[0])})
-            for k,v in exps.items():
-                if k == "temp":
-                    continue
-                if str(v) == "undefined":
-                    del regs[k]
-                    continue
-                if k in self.Tregs.keys():
-                    exp = Exp.parseExp(self.Tregs[k][1].split())
-                    exp.binding(k, v)
-                    regs.update({exp.getDest():exp.getSrc()})
-                else:
-                    regs.update({k:v})
+                        # mem
+                        regs.update({str(reg):val})
+                if prefix == "push":
+                    regs.update({"ssp":Exp(regs["ssp"], "+", self.aligned)})
+                if prefix == "pop":
+                    regs.update({"ssp":Exp(regs["ssp"], "-", self.aligned)})
+
+            # evaluate flag regs base on exp
+            if len(ins[2]) != 0:
+                for flag in ins[2]:
+                    tokens = flag.split()
+                    if len(tokens) == 1:
+                        for k, v in exps.items():
+                            regs.update({tokens[0]:v})
+                    else:
+                        f = Exp.parse(flag, {})
+                        for k,v in f.items():
+                            # "CF = 1" 
+                            regs.update({tokens[0]:v})
             i = i + 1
             return self.parseInst(regs, insts, i)
 
@@ -401,7 +323,7 @@ if __name__ == '__main__':
             inst = {}
             inst.update({"mnemonic": decode.mnemonic})
             inst.update({"op_str": decode.op_str})
-            inst.update({"addr": decode.address})
+            inst.update({"vaddr": decode.address})
             gadget.append(inst)
         gadgets.append(gadget)
     p = ROPParserX86(gadgets, CS_MODE_32)

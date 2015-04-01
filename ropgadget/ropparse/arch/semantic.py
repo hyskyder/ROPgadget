@@ -28,7 +28,7 @@ class Semantic:
     def __str__(self):
         string = "length:" + str(self.deepth) + "\n"
         for g in self.gadgets:
-            string += str(g["vaddr"]) + "\t" 
+            string += str(g[0]["vaddr"]) + "\t" 
         string += "\n"
         for k,v in self.regs.items():
             string += k + " ==> " + str(v) + "\t"

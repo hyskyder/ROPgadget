@@ -76,7 +76,7 @@ class Gadgets:
                         gadget += (decode.mnemonic + " " + decode.op_str + " ; ").replace("  ", " ")
                         insn.update({"mnemonic":decode.mnemonic})
                         insn.update({"op_str":decode.op_str})
-                        insn.update({"addr":decode.address})
+                        insn.update({"vaddr":decode.address})
                         insns.append(insn)
                     if len(gadget) > 0:
                         gadget = gadget[:-3]

@@ -26,7 +26,7 @@ class Exp:
                 A $ B : C is defined as take the Bth bit to Cth bit of A
 	'''
 	# operator precedence, unary always first
-	unaryOp = ["-", "*", "+", "&", "~", "C", "P", "S", "Z", "A", "O"]
+	unaryOp = ["-", "*", "+", "&", "~"]
 	binOp = {"*":1, "%":1, "/":1, "+":2, "-":2, ">>":3, "<<":3, "<":4, "<=":4, ">":4, ">=":4, "==":5, "!=":5, "&":6, "^":7, "|":8, "&&":9, "||":10, "?":11, "$":11, "=":12}
 	def __init__(self, left, op=None, right=None, condition=None):
 			if condition != None:
@@ -60,7 +60,7 @@ class Exp:
             try:
                 naddr = addr + int(operand)
                 for index in range(len(insts)):
-                    if insts[index]["addr"] == naddr:
+                    if insts[index]["vaddr"] == naddr:
                         return index
                 return -1
             except ValueError:
@@ -76,7 +76,7 @@ class Exp:
 
             if self.right is None:
                 if self.op is not None and self.op == "*":
-                    return len(self.getRegs()) == 1 and (self.getRegs()[0] == "esp" or self.getRegs()[0] == "rsp")
+                    return len(self.getRegs()) == 1 and self.getRegs()[0] == "ssp"
                 else:
                     return self.left.isControl()
             else:
@@ -86,7 +86,12 @@ class Exp:
         # 0 == Constant, 1 == Reg, 2 == Regs, 3 == Mem, 4 == Mem + Regs
         def getCategory(self):
             if self.condition is not None:
-                return self.condition.getCategory()
+                if isinstance(self.condition, Exp):
+                    return self.condition.getCategory()
+                elif not self.isInt(self.condition):
+                    return 1
+                else:
+                    return 0
 
             left = 0
             right = 0
@@ -265,7 +270,10 @@ class Exp:
             exp = Exp.parseUnaryExp(tokens)
             if len(tokens) == 0:
                 return exp
-            return Exp.parseBinExp(exp, tokens, 12)
+            exp = Exp.parseBinExp(exp, tokens, 12)
+            if isinstance(exp, Exp):
+                return exp
+            return Exp(exp)
 
         @staticmethod
         def parseUnaryExp(tokens):
@@ -315,34 +323,23 @@ class Exp:
             return left
 
         @staticmethod
-        def parse(string, operands, flagExp=None):
-            exps = {}
-            for s in string:
-                # dst is either the operand, regs or memory location
-                # Ex: operand1 = operand1 + operand2 or [esp] = operand1 or esp = esp + length
-                exp = Exp.parseExp(s.split()[:])
-                # default lamba exp
-                dst = "temp"
-                if isinstance(exp, Exp) and exp.isAssign():
-                    # assgin exp
-                    dst = exp.getDest()
-                    exp = exp.getSrc()
-                elif not isinstance(exp, Exp):
-                    dst = exp
+        def parse(string, operands):
+            # dst is either the operand, regs or memory location
+            # Ex: operand1 = operand1 + operand2 or [esp] = operand1 
+            reg = string.split(" = ")[0]
+            val = string.split(" = ")[1]
+            exp = Exp.parseExp(val.split()[:])
 
-                if operands != None and dst in operands.keys():
-                    dst = str(operands[dst])
+            if operands != None and reg in operands.keys():
+                reg = str(operands[reg])
 
-                if operands != None:
-                    if isinstance(exp, Exp):
-                        exp.binding(operands)
-                    elif exp in operands.keys():
-                        exp = operands[exp]
-                    exps.update({dst:exp})
+            if operands != None:
+                if isinstance(exp, Exp):
+                    exp.binding(operands)
+                elif exp in operands.keys():
+                    exp = operands[exp]
 
-                if flagExp != None and flagExp.left == "flag":
-                    flagExp.binding({"flag":exp})
-            return exps
+            return {reg:exp}
 
 
 
