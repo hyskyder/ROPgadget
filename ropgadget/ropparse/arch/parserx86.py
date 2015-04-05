@@ -69,8 +69,8 @@ class X86:
 	    "push": [1, ["* ssp = operand1"], []],
 	    "pop": [1, ["operand1 = * ssp"], []],
 
-        "movsx": [2, ["operand1 = operand2 > 0 ? operand2 : operand2 & 0xffffffffffffffff"], []],
-        "movzx": [2, ["operand1 = 0 & operand2"], []],
+        #"movsx": [2, ["operand1 = operand2 > 0 ? operand2 : operand2 & 0xffffffffffffffff"], []],
+        #"movzx": [2, ["operand1 = 0 & operand2"], []],
         # flag control instuctions
 		"stc": [0, [], ["CF = 1"]],
 	    "clc": [0, [], ["CF = 0"]],
@@ -119,9 +119,9 @@ class X86:
 	    "jo": [1, [], ["OF == 1 ? * operand1 : 0"]],
 	    "js": [1, [], ["SF == 1 ? * operand1 : 0"]],
         # logic
-        "and": [2, ["operand1 = operand1 & operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
-	    "or": [2, ["operand1 = operand1 | operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
-	    "xor": [2, ["operand1 = operand1 ^ operand2"], ["CF","OF", "SF", "ZF", "PF"]],
+        "and": [2, ["operand1 = operand1 & operand2"], ["CF = 0", "OF = 0", "SF", "ZF", "PF"]],
+	    "or": [2, ["operand1 = operand1 | operand2"], ["CF = 0", "OF = 0", "SF", "ZF", "PF"]],
+	    "xor": [2, ["operand1 = operand1 ^ operand2"], ["CF = 0","OF = 0", "SF", "ZF", "PF"]],
 	    "not": [1, ["operand1 = ~ operand1"], []],
         # shift and rotate
 #        "sar": [2, ["operand1 = operand1 >> operand2"] , ["CF", "OF", "SF", "ZF", "PF"]],
@@ -142,43 +142,43 @@ class X86:
 #        "btc": [],
 #        "bsf": [],
 #        "bsr": [],
-        "sete": [1, ["operand1 = ZF == 1 ? 0xff : operand1"], []],
-        "setne": [1, ["operand1 = ZF == 0 ? 0xff : operand1"], []],
-        "seta": [1, ["operand1 = CF == 0 & ZF == 0 ? 0xff : operand1"],[]],
-        "setae": [1, ["operand1 = CF == 0 ? 0xff : operand1"],[]],
-        "setb": [1, ["operand1 = CF == 1 ? 0xff : operand1"],[]],
-        "setbe": [1, ["operand1 = ZF == 1 | CF == 1 ? 0xff : operand1"], []],
-        "setg": [1, ["operand1 = ZF == 0 & SF == OF ? 0xff : operand1"], []],
-        "setge": [1, ["operand1 = SF == OF ? 0xff : operand1"], []],
-        "setl": [1, ["operand1 = SF != OF ? 0xff : operand1"], []],
-        "setle": [1, ["operand1 = ZF == 1 | SF != OF ? 0xff : operand1"], []],
-        "sets": [1, ["operand1 = SF == 1 ? 0xff : operand1"], []],
-        "setns": [1, ["operand1 = SF == 0 ? 0xff : operand1"], []],
-        "seto": [1, ["operand1 = OF == 1 ? 0xff : operand1"], []],
-        "setno": [1, ["operand1 = OF == 0 ? 0xff : operand1"], []],
-        "setpe": [1, ["operand1 = PF == 1 ? 0xff : operand1"], []],
-        "setpo": [1, ["operand1 = PF == 0 ? 0xff : operand1"], []],
+#        "sete": [1, ["operand1 = ZF == 1 ? 0xff : operand1"], []],
+#        "setne": [1, ["operand1 = ZF == 0 ? 0xff : operand1"], []],
+#        "seta": [1, ["operand1 = CF == 0 & ZF == 0 ? 0xff : operand1"],[]],
+#        "setae": [1, ["operand1 = CF == 0 ? 0xff : operand1"],[]],
+#        "setb": [1, ["operand1 = CF == 1 ? 0xff : operand1"],[]],
+#        "setbe": [1, ["operand1 = ZF == 1 | CF == 1 ? 0xff : operand1"], []],
+#        "setg": [1, ["operand1 = ZF == 0 & SF == OF ? 0xff : operand1"], []],
+#        "setge": [1, ["operand1 = SF == OF ? 0xff : operand1"], []],
+#        "setl": [1, ["operand1 = SF != OF ? 0xff : operand1"], []],
+#        "setle": [1, ["operand1 = ZF == 1 | SF != OF ? 0xff : operand1"], []],
+#        "sets": [1, ["operand1 = SF == 1 ? 0xff : operand1"], []],
+#        "setns": [1, ["operand1 = SF == 0 ? 0xff : operand1"], []],
+#        "seto": [1, ["operand1 = OF == 1 ? 0xff : operand1"], []],
+#        "setno": [1, ["operand1 = OF == 0 ? 0xff : operand1"], []],
+#        "setpe": [1, ["operand1 = PF == 1 ? 0xff : operand1"], []],
+#        "setpo": [1, ["operand1 = PF == 0 ? 0xff : operand1"], []],
         "test": [2, ["temp = operand1 & operand2"], ["OF = 0", "CF = 0", "SF", "ZF", "PF"]],
         # segment
         # others
         "lea": [2, ["operand1 = & operand2"], []],
         "nop": [0, [], []],
         # string operation
-        "movsb": [2, ["operand1 = operand2"], []],
-        "movsd": [2, ["operand1 = operand2"], []],
-        "movsw": [2, ["operand1 = operand2"], []],
-        "cmpsb": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "cmpsw": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "cmpsd": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "scasb": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "scasw": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "scasd": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-        "lodsb": [2, ["temp = operand1 = operand2"], []],
-        "lodsw": [2, ["operand1 = operand2"], []],
-        "lodsd": [2, ["operand1 = operand2"], []],
-        "stosb": [2, ["operand1 = operand2"], []],
-        "stosw": [2, ["operand1 = operand2"], []],
-        "stosd": [2, ["operand1 = operand2"], []],
+#        "movsb": [2, ["operand1 = operand2"], []],
+#        "movsd": [2, ["operand1 = operand2"], []],
+#        "movsw": [2, ["operand1 = operand2"], []],
+#        "cmpsb": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+#        "cmpsw": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+#        "cmpsd": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+#        "scasb": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+#        "scasw": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+#        "scasd": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
+#        "lodsb": [2, ["temp = operand1 = operand2"], []],
+#        "lodsw": [2, ["operand1 = operand2"], []],
+#        "lodsd": [2, ["operand1 = operand2"], []],
+#        "stosb": [2, ["operand1 = operand2"], []],
+#        "stosw": [2, ["operand1 = operand2"], []],
+#        "stosd": [2, ["operand1 = operand2"], []],
 }
 class ROPParserX86:
     def __init__(self, gadgets, mode):
@@ -200,15 +200,10 @@ class ROPParserX86:
             regs = {"ssp": Exp("ssp")}
             regs = self.parseInst(regs, gadget, 0)
             '''
-            print "================================="
-            print "Gadget string:"
+            string = "========================="
             for inst in gadget:
-                print inst["mnemonic"], inst["op_str"]
-            print
-            print "Gadget semantic:"
-            for reg, v in regs.items():
-                print reg, "==>", v
-            print
+                string += inst["mnemonic"] + ", " +  inst["op_str"] + "\n"
+            gadget["string"] = string
             '''
             if len(regs) == 0:
                 continue
@@ -222,9 +217,9 @@ class ROPParserX86:
         if i == len(insts):
             return regs
         # all control transfer dst must bewteen low and high addr
-        addr = insts[i]["vaddr"]
         prefix = insts[i]["mnemonic"]
         op_str = insts[i]["op_str"]
+        addr = insts[i]["vaddr"]
         if prefix not in X86.insn.keys():
             # contains not supported ins
             return {}
@@ -239,6 +234,7 @@ class ROPParserX86:
                     dst.binding({"operand1":0})
                 else:
                     dst.binding({"operand1":operand1})
+                dst.binding(regs)
                 regs.update({"sip":dst})
                 # only ret inst can modify ssp
                 if prefix == "ret":
@@ -253,6 +249,7 @@ class ROPParserX86:
             operand1 = Exp.parseOperand(op_str.split(" ")[0], regs, self.Tregs)
             dst = Exp.parseExp(ins[2][0].split())
             dst.binding({"operand1":operand1})
+            dst.binding(regs)
             regs.update({"sip": dst})
             return regs
         else:
@@ -301,7 +298,7 @@ class ROPParserX86:
                     tokens = flag.split()
                     if len(tokens) == 1:
                         for k, v in exps.items():
-                            regs.update({tokens[0]:v})
+                            regs.update({tokens[0]:Exp(v, tokens[0][:-1])})
                     else:
                         f = Exp.parse(flag, {})
                         for k,v in f.items():

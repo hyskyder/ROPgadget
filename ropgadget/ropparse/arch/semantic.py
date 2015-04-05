@@ -1,5 +1,6 @@
 #!/usr/bin/env python2
 import sys, traceback
+from copy import deepcopy
 
 class Semantic:
     def __init__(self, regs, gadget):
@@ -18,17 +19,29 @@ class Semantic:
         temp.extend(self.gadgets)
         self.gadgets = temp
         for k,v in self.regs.items(): 
-            v.binding(semantic.regs)
+            t = deepcopy(v)
+            t.binding(semantic.regs)
+            self.regs.update({k:t})
         for k,v in semantic.regs.items():
             if k not in self.regs.keys():
                 self.regs.update({k:v})
         self.deepth = self.deepth + semantic.deepth
-        #print self
+    
+    def getAddress(self):
+        addrs = []
+        for g in self.gadgets:
+            addrs.append(g[0]["vaddr"])
+        return addrs
 
     def __str__(self):
         string = "length:" + str(self.deepth) + "\n"
         for g in self.gadgets:
-            string += str(g[0]["vaddr"]) + "\t" 
+            string += hex(g[0]["vaddr"]) + "\n" 
+            temp = ""
+            for inst in g:
+                temp += inst["mnemonic"] + ", " + inst["op_str"] + "\n"
+            string += temp
+
         string += "\n"
         for k,v in self.regs.items():
             string += k + " ==> " + str(v) + "\t"
