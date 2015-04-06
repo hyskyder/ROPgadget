@@ -26,6 +26,10 @@ class ROPChainTestCase(unittest.TestCase):
 
         gadget6 = [{"mnemonic":"stc", "op_str":"", "vaddr":6},      {"mnemonic":"ret", "op_str": "", "vaddr":"6"}]
         gadget7 = [{"mnemonic":"cmovb", "op_str":"edx, 1", "vaddr":7},      {"mnemonic":"ret", "op_str": "", "vaddr":"6"}]
+
+        gadget8 = [{"mnemonic":"mov", "op_str":"edx, ebx", "vaddr":8},  {"mnemonic":"jmp", "op_str":"edx", "vaddr":8}]
+        gadget9 = [{"mnemonic":"mov", "op_str":"edx, ecx", "vaddr":9},  {"mnemonic":"jc", "op_str":"edx", "vaddr":9}]
+
         gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5, gadget6, gadget7]
         self.rop = ROPChain(BinaryStub(), gadgets, 0)
 
@@ -65,16 +69,19 @@ class ROPChainTestCase(unittest.TestCase):
         res = list(self.rop.Start({"edx": Exp("1")}))
         assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [6, 7] 
 
-'''
-    def testTwoConds(self):
-        pass
-
     def testJOP(self):
-        pass
+        res = list(self.rop.Start({"edx": Exp("ebx")}))
+        assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [4, 8] 
+
+        res = list(self.rop.Start({"edx": Exp("ecx")}))
+        assert len(res) == 2 and ( (res[0].getAddress() == [4, 6, 9] and res[1].getAddress() == [6, 4, 9])  or (res[0].getAddress() == [6, 4, 9] and res[1].getAddress() == [4, 6, 9]) )
+
+    def testTwoConds(self):
+        res = list(self.rop.Start({"edx": Exp("1"), "eax": Exp("1")}))
+        assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [4, 8] 
 
     def testSubReg(self):
         pass
-'''
 
 if __name__ == "__main__":
     unittest.main()

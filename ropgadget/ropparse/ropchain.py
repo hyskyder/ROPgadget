@@ -8,7 +8,7 @@ from copy import deepcopy
 from z3 import *
 
 class ROPChain:
-    def __init__(self, binary, gadgets, deepth = 0):
+    def __init__(self, binary, gadgets, opt, deepth = 0):
         self.binary = binary
         self.gadgets = gadgets
         # all the gadgets store by { reg : { cat : [] } }
@@ -19,6 +19,7 @@ class ROPChain:
         self.deepth = deepth
         self.solver = Solver()
         self.z3Regs= {}
+        self.optimized = opt
         if self.binary is not None and self.binary.getArch() == CS_ARCH_X86:
             self.parser = ROPParserX86(self.gadgets, self.binary.getArchMode())
             self.semantics = self.parser.parse()
@@ -377,12 +378,72 @@ class ROPChain:
         targets.insert(0, target)
         return chained
 
-    def AddGadget(self, reg, val, semantic):
+    def AddToCat(self, reg, val, semantic):
         if reg not in self.categories.keys():
             self.categories.update({reg:{}})
         if val.getCategory() not in self.categories[reg].keys():
             self.categories[reg].update({val.getCategory():[]})
         self.categories[reg][val.getCategory()].append(semantic)
+
+    def ChainRetGadget(sip, nex, deepth):
+        # sip must be a mem location
+        fixed = set()
+        if deepth > self.deepth:
+            return fixed
+        if isinstance(sip.left, Exp):
+            if sip.left.getCategory() == 1:
+                # the location is only determined by one reg 
+                reg = sip.left.getRegs()[0]
+                if reg in self.categories.keys() and 1 in self.categories[reg].keys():
+                    for semantic in self.categories[reg][1]:
+                        if semantic.regs[reg].getCategory() == 1 and semantic.regs[reg].getRegs()[0] == "ssp":
+                            c = deepcopy(nex)
+                            c.chain(semantic)
+                            fixed.addd(c)
+
+            elif sip.left.getCategory() == 2:
+                regs = sip.left.getRegs()
+                for reg in regs:
+                    # one reg is esp, others are constant, TODO
+                    pass
+
+            elif sip.left.getCategory() == 3:
+                if sip.left.isControl():
+                    # if mem location is from esp
+                    c = deepcopy(nex)
+                    c.chain(semantic)
+                    fixed.add(c)
+                else:
+                    # otherwise, chain another mem location gadget
+                    c = deepcopy(nex)
+                    c.chain(semantic)
+                    temp = self.ChainRetGadget(sip.left.left, c, deepth+1)
+                    for jop in temp:
+                        fixed.add(jop)
+        return fixed 
+
+    def ChainCondGadget(cond, targets, nex):
+        fixed = set()
+        reg = targets.pop(0)
+        if len(targets) != 0:
+            if reg in self.categories.keys() and 0 in self.categories[reg].keys():
+                for semantic in self.categories[reg][0]:
+
+            if reg in self.categories.keys() and 1 in self.categories[reg].keys():
+                for semantic in self.categories[reg][1]:
+        else:
+            if reg in self.categories.keys() and 0 in self.categories[reg].keys():
+                for semantic in self.categories[reg][0]:
+                    c = deepcopy(nex)
+                    c.chain(semantic)
+                    fixed.update(ChainCondGadget(cond, targets, c))
+
+            if reg in self.categories.keys() and 1 in self.categories[reg].keys():
+                for semantic in self.categories[reg][1]:
+                    c = deepcopy(nex)
+                    c.chain(semantic)
+                    fixed.update(ChainCondGadget(cond, targets, c))
+        return fixed
 
     def Category(self):
         temp = []
@@ -393,47 +454,49 @@ class ROPChain:
                     if not reg in self.z3Regs:
                         self.mems.append(semantic)
                         continue
-                    self.AddGadget(reg, val, semantic)
+                    self.AddToCat(reg, val, semantic)
             else:
                 temp.append(semantic)
         print "gadgets with destination need to be fixed ", len(temp)
         print "gadgets can be directly used", len(self.semantics) - len(temp)
-        # TODO fix sip
-        ''' 
         for semantic in temp:
-            regs = semantic.regs["sip"].getRegs()
-            if len(regs) == 1:
-                for chain in self.categories[regs[0]][0]:
-                    dup = deepcopy(chain)
-                    dup.chain(semantic)
-                    for reg, val in dup.regs.items():
-                        self.categories[reg][val.getCategory()].append(val)
-            else:
-                pass
-        ''' 
-        # prechain
-        print "prechaining with deepth = ", self.deepth
-        for i in range(self.deepth):
-            for reg1 in self.categories.keys():
-                # replace all regs that can be mapped to constant or reg
-                for t1 in [ 0, 1 ]:
-                    if t1 not in self.categories[reg1].keys():
+            # add JOP
+            if semantic.regs["sip"].isCond():
+                cond = semantic.getCondition()
+                cond = self.ChainCondGadget(cond, cond.getRegs(), semantic)
+
+            fixed = self.ChainRetGadget(semantic.regs["sip"], semantic, 0)
+            for jop in fixed:
+                for reg, val in jop.regs.items():
+                    if not reg in self.z3Regs:
+                        self.mems.append(semantic)
                         continue
-                    for semantic in self.categories[reg1][t1]:
-                        for reg2 in self.categories.keys():
-                            if reg1 == reg2:
-                                continue
-                            for t2 in [1, 2, 3]:
-                                if t2 in self.categories[reg2].keys():
-                                    temp = []
-                                    for s in self.categories[reg2][t2]:
-                                        if reg1 not in s.regs[reg2].getRegs():
-                                            continue
-                                        c = deepcopy(s)
-                                        c.chain(semantic)
-                                        temp.append(c)
-                                    for s in temp:
-                                        self.AddGadget(reg2, s.regs[reg2], s)
+                    self.AddToCat(reg, val, semantic)
+
+        # prechain
+        if self.optimized:
+            print "prechaining with deepth = ", self.deepth
+            for i in range(self.deepth):
+                for reg1 in self.categories.keys():
+                    # replace all regs that can be mapped to constant or reg
+                    for t1 in [ 0, 1 ]:
+                        if t1 not in self.categories[reg1].keys():
+                            continue
+                        for semantic in self.categories[reg1][t1]:
+                            for reg2 in self.categories.keys():
+                                if reg1 == reg2:
+                                    continue
+                                for t2 in [1, 2, 3]:
+                                    if t2 in self.categories[reg2].keys():
+                                        temp = []
+                                        for s in self.categories[reg2][t2]:
+                                            if reg1 not in s.regs[reg2].getRegs():
+                                                continue
+                                            c = deepcopy(s)
+                                            c.chain(semantic)
+                                            temp.append(c)
+                                        for s in temp:
+                                            self.AddToCat(reg2, s.regs[reg2], s)
         # category
         print "Category as follows:"
         for reg in self.categories.keys():
@@ -455,7 +518,7 @@ if __name__ == '__main__':
     regs4 = {"sip":Exp("ssp", "*"), "ebx": Exp("1")}
     s4 = Semantic(regs4, None)
     s = [s1, s2, s3]
-    r = ROPChain(None, None)
+    r = ROPChain(None, None, False)
     r.semantics = s
     r.Category()
     r.Core()

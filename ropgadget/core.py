@@ -85,7 +85,7 @@ class Core(cmd.Cmd):
             strs.append(gadget["insns"])
             print ("0x%08x" %(vaddr) if arch == CS_MODE_32 else "0x%016x" %(vaddr)) + " : %s" %(insts)
         print "\nUnique gadgets found: %d" %(len(self.__gadgets))
-        rop = ROPChain(self.__binary, strs)
+        rop = ROPChain(self.__binary, strs, False)
         return True
 
 

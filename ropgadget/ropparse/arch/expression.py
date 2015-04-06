@@ -38,6 +38,8 @@ class Exp:
             self.left = left			
             self.right = right			
             self.condition = condition            
+        
+        # default reg size
         self.size = 1
         if self.op == '$':
             self.size = right - left + 1
@@ -76,6 +78,7 @@ class Exp:
             else:
                 return str(self.left)
 
+    # return True if this is conditional exp
     def isCond(self):
         if self.op is not None and self.op == "condition":
             return True
@@ -164,14 +167,6 @@ class Exp:
             regs.append(self.condition)
         return list(set(regs))
     
-    def getDest(self):
-        if self.op == "=":
-            if isinstance(self.left, Exp):
-                return self.left.getOperand1()
-            else:
-                return self.left
-        return ""
-    
     def isConstant(self):
         constant = True
         if isinstance(self.left, Exp):
@@ -221,6 +216,7 @@ class Exp:
             return False
 
     def getCondition(self):
+        # always return the first condition we encounter
         if self.op is not None and self.op == "condition":
             return self.condition
         if isinstance(self.left, Exp) and self.left.isCond():
