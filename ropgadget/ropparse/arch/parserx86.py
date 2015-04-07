@@ -16,36 +16,36 @@ class X86:
             "r13", "r14", "r15", "CS", "DS", "ES", "FS", "GS", "SS"]
     regs32 = ["eax", "ebx", "ecx", "edx", "CS", "DS", "ES", "FS", "GS", "SS", "esi", "edi", "ebp", "esp", "eip"]
     Tregs64 = {
-            "eax" : ["eax = rax $ 0 : 31", "rax = rax & 0xffffffff00000000 | eax"],
-            "ax" : ["ax = rax $ 0 : 15", "rax = rax & 0xffffffffffff0000 | ax"],
-            "ah" : ["ah = rax $ 8 : 15", "rax = rax & 0xffffffffffff00ff | ah"],
-            "al" : ["ah = rax $ 0 : 7", "rax = rax & 0xffffffffffffff00 | al"],
-            "ebx" : ["ebx = rbx $ 0 : 31", "rbx = rbx & 0xffffffff00000000 | ebx"],
-            "bx" : ["bx = rbx $ 0 : 15", "rbx = rbx & 0xffffffffffff0000 | bx"],
-            "bh" : ["bh = rbx $ 8 : 15", "rbx = rbx & 0xffffffffffff00ff | bh"],
-            "bl" : ["bh = rbx $ 0 : 7", "rbx = rbx & 0xffffffffffffff00 | bl"],
-            "ecx" : ["ecx = rcx $ 0 : 31", "rcx = rcx & 0xffffffff00000000 | ecx"],
-            "cx" : ["cx = rcx $ 0 : 15", "rcx = rcx & 0xffffffffffff0000 | cx"],
-            "ch" : ["ch = rcx $ 8 : 15", "rcx = rcx & 0xffffffffffff00ff | ch"],
-            "cl" : ["ch = rcx $ 0 : 7", "rcx = rcx & 0xffffffffffffff00 | cl"],
-            "edx" : ["edx = rdx $ 0 : 31", "rdx = rdx & 0xffffffff00000000 | edx"],
-            "dx" : ["dx = rdx $ 0 : 15", "rdx = rdx & 0xffffffffffff0000 | dx"],
-            "dh" : ["dh = rdx $ 8 : 15", "rdx = rdx & 0xffffffffffff00ff | dh"],
-            "dl" : ["dh = rdx $ 0 : 7", "rdx = rdx & 0xffffffffffffff00 | dl"]
+            "eax" : ["rax $ 0 : 31", "rax = rax & 0xffffffff00000000 | eax"],
+            "ax" : ["rax $ 0 : 15", "rax = rax & 0xffffffffffff0000 | ax"],
+            "ah" : ["rax $ 8 : 15", "rax = rax & 0xffffffffffff00ff | ah"],
+            "al" : ["rax $ 0 : 7", "rax = rax & 0xffffffffffffff00 | al"],
+            "ebx" : ["rbx $ 0 : 31", "rbx = rbx & 0xffffffff00000000 | ebx"],
+            "bx" : ["rbx $ 0 : 15", "rbx = rbx & 0xffffffffffff0000 | bx"],
+            "bh" : ["rbx $ 8 : 15", "rbx = rbx & 0xffffffffffff00ff | bh"],
+            "bl" : ["rbx $ 0 : 7", "rbx = rbx & 0xffffffffffffff00 | bl"],
+            "ecx" : ["rcx $ 0 : 31", "rcx = rcx & 0xffffffff00000000 | ecx"],
+            "cx" : ["rcx $ 0 : 15", "rcx = rcx & 0xffffffffffff0000 | cx"],
+            "ch" : ["rcx $ 8 : 15", "rcx = rcx & 0xffffffffffff00ff | ch"],
+            "cl" : ["rcx $ 0 : 7", "rcx = rcx & 0xffffffffffffff00 | cl"],
+            "edx" : ["rdx $ 0 : 31", "rdx = rdx & 0xffffffff00000000 | edx"],
+            "dx" : ["rdx $ 0 : 15", "rdx = rdx & 0xffffffffffff0000 | dx"],
+            "dh" : ["rdx $ 8 : 15", "rdx = rdx & 0xffffffffffff00ff | dh"],
+            "dl" : ["rdx $ 0 : 7", "rdx = rdx & 0xffffffffffffff00 | dl"]
         }
     Tregs32 = {
-            "ax" : ["ax = eax $ 0 : 15", "eax = eax & 0xffff0000 | ax"],
-            "ah" : ["ah = eax $ 8 : 15", "eax = eax & 0xffff00ff | ah"],
-            "al" : ["ah = eax $ 0 : 7", "eax = eax & 0xffffff00 | al"],
-            "bx" : ["bx = ebx $ 0 : 15", "ebx = ebx & 0xffff0000 | bx"],
-            "bh" : ["bh = ebx $ 8 : 15", "ebx = ebx & 0xffff00ff | bh"],
-            "bl" : ["bh = ebx $ 0 : 7", "ebx = ebx & 0xffffff00 | bl"],
-            "cx" : ["cx = ecx $ 0 : 15", "ecx = ecx & 0xffff0000 | cx"],
-            "ch" : ["ch = ecx $ 8 : 15", "ecx = ecx & 0xffff00ff | ch"],
-            "cl" : ["ch = ecx $ 0 : 7", "ecx = ecx & 0xffffff00 | cl"],
-            "dx" : ["dx = edx $ 0 : 15", "edx = edx & 0xffff0000 | dx"],
-            "dh" : ["dh = edx $ 8 : 15", "edx = edx & 0xffff00ff | dh"],
-            "dl" : ["dh = edx $ 0 : 7", "edx = edx & 0xffffff00 | dl"],
+            "ax" : ["eax $ 0 : 15", "eax = eax & 0xffff0000 | ax"],
+            "ah" : ["eax $ 8 : 15", "eax = eax & 0xffff00ff | ah"],
+            "al" : ["eax $ 0 : 7", "eax = eax & 0xffffff00 | al"],
+            "bx" : ["ebx $ 0 : 15", "ebx = ebx & 0xffff0000 | bx"],
+            "bh" : ["ebx $ 8 : 15", "ebx = ebx & 0xffff00ff | bh"],
+            "bl" : ["ebx $ 0 : 7", "ebx = ebx & 0xffffff00 | bl"],
+            "cx" : ["ecx $ 0 : 15", "ecx = ecx & 0xffff0000 | cx"],
+            "ch" : ["ecx $ 8 : 15", "ecx = ecx & 0xffff00ff | ch"],
+            "cl" : ["ecx $ 0 : 7", "ecx = ecx & 0xffffff00 | cl"],
+            "dx" : ["edx $ 0 : 15", "edx = edx & 0xffff0000 | dx"],
+            "dh" : ["edx $ 8 : 15", "edx = edx & 0xffff00ff | dh"],
+            "dl" : ["edx $ 0 : 7", "edx = edx & 0xffffff00 | dl"],
 
     }
     # Instructions that modifty the execution path
@@ -273,16 +273,16 @@ class ROPParserX86:
                     if reg == "temp":
                         # temp variable, no need to assign
                         continue
-                    dst = Exp.parseOperand(op_str.split(", ")[0], {}, self.Tregs)
+                    dst = Exp.parseOperand(op_str.split(", ")[0], {}, {})
                     if str(dst) in self.regs:
                         # GPRs
                         regs.update({str(dst):val})
                     elif str(dst) in self.Tregs:
                         # subpart of GPRs
-                        temp = Exp.parse(self.Tregs[dst][1], {})
+                        temp = Exp.parse(self.Tregs[str(dst)][1], {})
                         for k, v in temp.items():
                             v.binding(regs)
-                            v.binding({{str(dst):val}})
+                            v.binding({str(dst):val})
                             regs.update({k:v})
                     else:
                         # mem

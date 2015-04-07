@@ -9,6 +9,13 @@ class Semantic:
         self.regs = regs
         self.deepth = 1
 
+    def binding(self, prev):
+        if prev is None:
+            return 
+        for k, v in self.regs.items():
+            v.binding(prev)
+            self.regs.update({k:v})
+
     def chain(self, semantic): 
         #print "chaing two semantic ........................."
         #print self, semantic
@@ -42,10 +49,8 @@ class Semantic:
                 temp += inst["mnemonic"] + ", " + inst["op_str"] + "\n"
             string += temp
 
-        string += "\n"
-        for k,v in self.regs.items():
-            string += k + " ==> " + str(v) + "\t"
-        string += "\n"
+        for reg, val in self.regs.items():
+            string += str(reg) + "\t======>\t" + str(val) + "\n"
         return string
 
     def __eq__(self, other):

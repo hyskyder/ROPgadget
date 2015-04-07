@@ -40,6 +40,7 @@ class Exp:
             self.condition = condition            
         
         # default reg size
+        '''
         self.size = 1
         if self.op == '$':
             self.size = right - left + 1
@@ -61,6 +62,7 @@ class Exp:
             self.size = max(self.size, 32)
         elif right[0] == 'r':
             self.size = max(self.size, 64)
+            '''
 
     def __str__(self):
         if self.condition is not None:
@@ -216,7 +218,7 @@ class Exp:
             return False
 
     def getCondition(self):
-        # always return the first condition we encounter
+        # return the first condition we encounter
         if self.op is not None and self.op == "condition":
             return self.condition
         if isinstance(self.left, Exp) and self.left.isCond():
@@ -224,6 +226,22 @@ class Exp:
         if isinstance(self.right, Exp) and self.right.isCond():
             return self.right.getCondition()
         return None
+    
+    def meetCondition(self):
+        # return new exp with the first condition meet
+        if self.op is not None:
+            if self.op == "condition":
+                return self.left
+            else:
+                self.condition = self.condition.meetCondition()
+                return self
+        if isinstance(self.left, Exp) and self.left.isCond():
+            self.left = self.left.meetCondition()
+            return self
+        if isinstance(self.right, Exp) and self.right.isCond():
+            self.right = self.right.meetCondition()
+            return self
+        return self
 
     def __repr__(self):
         return '<%s.%s object at %s>' % (
@@ -266,10 +284,12 @@ class Exp:
             except ValueError:
                 # register
                 if string in Tregs.keys():
-                    exp = Exp.parseExp(Tregs[string][0].split()).getSrc()
+                    exp = Exp.parseExp(Tregs[string][0].split())
                     exp.binding(regs)
                     return exp
                 exp = Exp(string)
+                if string == "esp" or string == "rsp":
+                    exp = Exp("ssp")
                 if string in regs.keys():
                     exp.binding(regs)
                 return exp
