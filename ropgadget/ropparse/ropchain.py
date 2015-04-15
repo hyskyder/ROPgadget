@@ -39,18 +39,18 @@ class ROPChain:
         self.Category()
 
     def Convert(self, exp):
-        if not isinstance(exp, Exp):
-            if exp == "ssp":
+        if not isinstance(exp.left, Exp):
+            if exp.left == "ssp":
                 if self.binary.getArchMode() == CS_MODE_32:
                     return self.z3Regs["esp"]
                 else:
                     return self.z3Regs["rsp"]
-            elif exp in self.z3Regs.keys():
-                return self.z3Regs[exp]
-            elif isinstance(exp, str) and "0x" in exp:
-                return int(exp, 16)
+            elif exp.left in self.z3Regs.keys():
+                return self.z3Regs[exp.left]
+            elif isinstance(exp.left, str) and "0x" in exp.left:
+                return int(exp.left, 16)
             else:
-                return int(exp)
+                return int(exp.left)
         reg = None
         if exp.op is not None and exp.op == "condition":
             return If(self.Convert(exp.condition), self.Convert(exp.left), self.Convert(exp.right))

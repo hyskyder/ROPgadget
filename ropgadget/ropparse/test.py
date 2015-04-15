@@ -17,7 +17,7 @@ class BinaryStub():
 
 class ExpTestCase(unittest.TestCase):
     def testExpBinding(self):
-        print "Test Exp binding........................................"
+        print "Test Exp binding...................................."
         exp = Exp("eax")
         exp = exp.binding({"eax":Exp(1)})
         assert str(exp) == "1"
@@ -27,26 +27,26 @@ class ExpTestCase(unittest.TestCase):
 
 
     def testExpParsing(self):
-        print "Test Exp parsing........................................"
+        print "Test Exp parsing...................................."
         exp = Exp.parseOperand("byte ptr [rax + 0x15]", {}, {})
         assert str(exp) == "[ ( rax + 0x15 ) ]"
         exp = Exp.parseOperand("eax", {"eax":Exp(1)},{})
         assert str(exp) == "1"
         exp = Exp.parse("operand1 = operand2", { "operand1":Exp("eax"), "operand2":Exp("ebx")})
         for key, val in exp.items():
-            assert key == "eax" and str(val) == "ebx"
+            assert key == "operand1" and str(val) == "ebx"
         exp = Exp.parse("operand1 = operand1 + operand2", {"operand1":Exp("eax"), "operand2":Exp(4)})
         for key, val in exp.items():
-            assert key == "eax" and str(val) == "( eax + 4 )"
+            assert key == "operand1" and str(val) == "( eax + 4 )"
         exp = Exp.parse("operand1 = ( operand2 - 1 ) $ 0 : 15", {"operand1":Exp("ax"), "operand2":Exp("eax")})
         for key, val in exp.items():
-            assert key == "ax" and str(val) == "( ( eax - 1 ) $ 0 : 15 )"
+            assert key == "operand1" and str(val) == "( ( eax - 1 ) $ 0 : 15 )"
         exp = Exp.parse("operand1 = ( operand1 $ 16 : 31 ) # operand2", {"operand1":Exp("eax"), "operand2":Exp("ax")})
         for key, val in exp.items():
-            assert key == "eax" and str(val) == "( ( eax $ 16 : 31 ) # ax )"
+            assert key == "operand1" and str(val) == "( ( eax $ 16 : 31 ) # ax )"
 
     def testExpLength(self):
-        print "Test Exp length........................................"
+        print "Test Exp length...................................."
         operand = Exp.parseOperand("eax", {}, {})
         assert operand.length == 32
 
@@ -68,19 +68,19 @@ class ExpTestCase(unittest.TestCase):
         exp = Exp.parse("operand1 = operand1 + operand2", operands)
         assert len(exp) == 1
         for key, val in exp.items():
-            assert key == "eax" and str(val) == "( eax + 1 )" and val.length == 32
+            assert key == "operand1" and str(val) == "( eax + 1 )" and val.length == 32
 
         operands = {}
-        operand1 = Exp.parseOperand("al", {"eax":exp["eax"]}, {"al":["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8]})
+        operand1 = Exp.parseOperand("al", {"eax":exp["operand1"]}, {"al":["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8]})
         assert str(operand1) == "( ( eax + 1 ) $ 0 : 7 )" and operand1.length == 8
         operands.update({"operand1":operand1})
         operands.update({"operand2":Exp("1")})
         exp2 = Exp.parse("operand1 = operand1 + operand2", operands)
         assert len(exp2) == 1
         for key, val in exp2.items():
-            assert key == "( ( eax + 1 ) $ 0 : 7 )" and str(val) == "( ( ( eax + 1 ) $ 0 : 7 ) + 1 )" and val.length == 8
+            assert key == "operand1" and str(val) == "( ( ( eax + 1 ) $ 0 : 7 ) + 1 )" and val.length == 8
             # concat al back to eax
-            temp = Exp.parse("eax = ( eax $ 8 : 31 ) # al", {"al":val, "eax":exp["eax"]})
+            temp = Exp.parse("eax = ( eax $ 8 : 31 ) # al", {"al":val, "eax":exp["operand1"]})
             for k, v in temp.items():
                 v = v.binding({"al":val})
                 assert v.length == 32 and str(v) == "( ( ( eax + 1 ) $ 8 : 31 ) # ( ( ( eax + 1 ) $ 0 : 7 ) + 1 ) )"
@@ -97,19 +97,19 @@ class ExpTestCase(unittest.TestCase):
         exp = Exp.parse("operand1 = operand2", operands)
         assert len(exp) == 1
         for key, val in exp.items():
-            assert key == "eax" and str(val) == "1" and val.length == 32
+            assert key == "operand1" and str(val) == "1" and val.length == 32
 
         operands = {}
-        operand1 = Exp.parseOperand("al", {"eax":exp["eax"]}, {"al":["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8]})
+        operand1 = Exp.parseOperand("al", {"eax":exp["operand1"]}, {"al":["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8]})
         assert str(operand1) == "( 1 $ 0 : 7 )" and operand1.length == 8 and operand1.condition.length == 32
         operands.update({"operand1":operand1})
         operands.update({"operand2":Exp("1")})
         exp2 = Exp.parse("operand1 = operand1 + operand2", operands)
         assert len(exp2) == 1
         for key, val in exp2.items():
-            assert key == "( 1 $ 0 : 7 )" and str(val) == "( ( 1 $ 0 : 7 ) + 1 )" and val.length == 8
+            assert key == "operand1" and str(val) == "( ( 1 $ 0 : 7 ) + 1 )" and val.length == 8
             # concat al back to eax
-            temp = Exp.parse("eax = ( eax $ 8 : 31 ) # al", {"al":val, "eax":exp["eax"]})
+            temp = Exp.parse("eax = ( eax $ 8 : 31 ) # al", {"al":val, "eax":exp["operand1"]})
             for k, v in temp.items():
                 v = v.binding({"al":val})
                 assert v.length == 32 and str(v) == "( ( 1 $ 8 : 31 ) # ( ( 1 $ 0 : 7 ) + 1 ) )"
@@ -144,25 +144,25 @@ class ParserX86TestCase(unittest.TestCase):
     def testParseInst(self):
         assert len(self.formula[0].regs) == 2 and str(self.formula[0].regs["eax"]) == "1" and str(self.formula[0].regs["ssp"]) == "ssp"
         assert len(self.formula[1].regs) == 2 and str(self.formula[1].regs["ebx"]) == "( ( ZF == 1 ) ? eax : ebx )"
-        assert len(self.formula[2].regs) == 2 and str(self.formula[2].regs["ssp"]) == "( ssp + 4 )" and str(self.formula[2].regs["[ esp ]"]) == "eax"
-        assert len(self.formula[3].regs) == 2 and str(self.formula[3].regs["ssp"]) == "( ssp - 4 )" and str(self.formula[3].regs["eax"]) == "[ esp ]"
+        assert len(self.formula[2].regs) == 2 and str(self.formula[2].regs["ssp"]) == "( ssp + 4 )" and str(self.formula[2].regs["[ ssp ]"]) == "eax"
+        assert len(self.formula[3].regs) == 2 and str(self.formula[3].regs["ssp"]) == "( ssp - 4 )" and str(self.formula[3].regs["eax"]) == "[ ssp ]"
         assert len(self.formula[4].regs) == 2 and str(self.formula[4].regs["CF"]) == "1" and str(self.formula[4].regs["ssp"]) == "ssp"
-        assert set(self.formula[5].regs.keys()) == set("ecx", "AF", "CF", "ZF", "OF", "SF","PF") and str(self.formula[5].regs["ecx"]) == "( ecx + [ dex ] )"
-        assert set(self.formula[6].regs.keys()) == set("ecx", "AF", "CF", "ZF", "OF", "SF","PF") and str(self.formula[6].regs["ecx"]) == "( ecx - [ dex ] )"
-        assert set(self.formula[7].regs.keys()) == set("AF", "CF", "ZF", "OF", "SF","PF") and str(self.formula[7].regs["CF"]) == ""
-        assert set(self.formula[8].regs.keys()) == set("AF", "ZF", "OF", "SF","PF", "ecx") and str(self.formula[8].regs["ecx"]) == "( ecx + 1 )"
-        assert set(self.formula[9].regs.keys()) == set("AF", "ZF", "OF", "SF","PF", "ecx") and str(self.formula[9].regs["ecx"]) == "( ecx - 1 )"
-        assert set(self.formula[10].regs.keys()) == set("AF", "CF", "ZF", "OF", "SF","PF", "ecx") and str(self.formula[9].regs["ecx"]) == "( - ecx )"
-        assert len(self.formula[11].regs) == 1 and str(self.formula[11].regs["sip"]) == "[ eax ]"
-        assert len(self.formula[12].regs) == 1 and str(self.formula[12].regs["sip"]) == "[ eax ]"
-        assert len(self.formula[13].regs) == 1 and str(self.formula[13].regs["sip"]) == "( ( ZF == 1 ) ? ( [ eax ] ) : 0 )"
-        assert set(self.formula[14].regs.keys()) == set("CF", "ZF", "OF", "SF","PF", "ecx") and str(self.formula[14].regs["ecx"]) == "( ecx & edx )" and str(self.formula[14].regs["CF"]) == "0" and str(self.formula[14].regs["OF"]) == "0"
-        assert set(self.formula[15].regs.keys()) == set("CF", "ZF", "OF", "SF","PF", "ecx") and str(self.formula[15].regs["ecx"]) == "( ecx | edx )" and str(self.formula[15].regs["CF"]) == "0" and str(self.formula[16].regs["OF"]) == "0"
-        assert set(self.formula[16].regs.keys()) == set("CF", "ZF", "OF", "SF","PF", "ecx") and str(self.formula[16].regs["ecx"]) == "( ecx ^ edx )" and str(self.formula[16].regs["CF"]) == "0" and str(self.formula[16].regs["OF"]) == "0"
-        assert len(self.formula[17].regs) == 1 and str(self.formula[17].regs["ecx"]) == "( ~ ecx )"
-        assert set(self.formula[18].regs.keys()) == set("CF", "ZF", "OF", "SF","PF") and str(self.formula[18].regs["CF"]) == "0" and str(self.formula[18].regs["OF"]) == "0"
-        assert len(self.formula[19].regs) == 1 and str(self.formula[19].regs["ecx"]) == "& [ edx ]"
-'''
+        assert set(self.formula[5].regs.keys()) == set(["ssp", "ecx", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[5].regs["ecx"]) == "( ( ecx + [ edx ] ) + CF )"
+        assert set(self.formula[6].regs.keys()) == set(["ssp", "ecx", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[6].regs["ecx"]) == "( ecx - [ edx ] )"
+        assert set(self.formula[7].regs.keys()) == set(["ssp", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[7].regs["CF"]) == "( C ( ecx - [ edx ] ) )"
+        assert set(self.formula[8].regs.keys()) == set(["ssp", "AF", "ZF", "OF", "SF","PF", "ecx"]) and str(self.formula[8].regs["ecx"]) == "( ecx + 1 )"
+        assert set(self.formula[9].regs.keys()) == set(["ssp", "AF", "ZF", "OF", "SF","PF", "ecx"]) and str(self.formula[9].regs["ecx"]) == "( ecx - 1 )"
+        assert set(self.formula[10].regs.keys()) == set(["ssp", "AF", "CF", "ZF", "OF", "SF","PF", "ecx"]) and str(self.formula[10].regs["ecx"]) == "( - ecx )"
+        assert len(self.formula[11].regs) == 2 and str(self.formula[11].regs["sip"]) == "[ eax ]" and str(self.formula[11].regs["ssp"]) == "ssp"
+        assert len(self.formula[12].regs) == 2 and str(self.formula[12].regs["sip"]) == "[ eax ]" and str(self.formula[12].regs["ssp"]) == "ssp"
+        assert len(self.formula[13].regs) == 2 and str(self.formula[13].regs["sip"]) == "( ( ZF == 1 ) ? [ eax ] : 0 )" and str(self.formula[13].regs["ssp"]) == "ssp"
+        assert set(self.formula[14].regs.keys()) == set(["CF", "ZF", "OF", "SF","PF", "ecx", "ssp"]) and str(self.formula[14].regs["ecx"]) == "( ecx & edx )" and str(self.formula[14].regs["CF"]) == "0" and str(self.formula[14].regs["OF"]) == "0"
+        assert set(self.formula[15].regs.keys()) == set(["CF", "ZF", "OF", "SF","PF", "ecx", "ssp"]) and str(self.formula[15].regs["ecx"]) == "( ecx | edx )" and str(self.formula[15].regs["CF"]) == "0" and str(self.formula[16].regs["OF"]) == "0"
+        assert set(self.formula[16].regs.keys()) == set(["CF", "ZF", "OF", "SF","PF", "ecx", "ssp"]) and str(self.formula[16].regs["ecx"]) == "( ecx ^ edx )" and str(self.formula[16].regs["CF"]) == "0" and str(self.formula[16].regs["OF"]) == "0"
+        assert len(self.formula[17].regs) == 2 and str(self.formula[17].regs["ecx"]) == "( ~ ecx )"
+        assert set(self.formula[18].regs.keys()) == set(["ssp", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[18].regs["CF"]) == "0" and str(self.formula[18].regs["OF"]) == "0"
+        assert len(self.formula[19].regs) == 2 and str(self.formula[19].regs["ecx"]) == "( & [ edx ] )"
+
 class ROPChainTestCase1(unittest.TestCase):
     def setUp(self):
         gadget1 = [{"mnemonic":"mov", "op_str":"eax, 1", "vaddr":1}, {"mnemonic":"ret", "op_str": "", "vaddr": "1"}]
@@ -221,9 +221,7 @@ class ROPChainTestCase1(unittest.TestCase):
 
         res = list(self.rop.Start({"ebx": Exp("1")}))
         assert len(res) == 2 and len(res[0].gadgets) == 2 and len(res[1].gadgets) == 2 and ( (res[0].getAddress() == [1, 3] and res[1].getAddress() == [2, 3])  or ( res[1].getAddress() == [1, 3] and res[2].getAddress() == [2, 3]) )
-'''
 
-'''
 class ROPChainTestCase2(unittest.TestCase):
 
     def setUp(self):
@@ -239,8 +237,6 @@ class ROPChainTestCase2(unittest.TestCase):
         res = list(self.rop.Start({"ecx": Exp("ebx")}))
         assert len(res) == 1 and ( res[0].getAddress() == [7, 1])
 
-'''
-'''
 class ROPChainTestCase3(unittest.TestCase):
 
     def setUp(self):
@@ -256,8 +252,7 @@ class ROPChainTestCase3(unittest.TestCase):
 
         res = list(self.rop.Start({"edx": Exp("ecx")}))
         assert len(res) == 1 and ( res[0].getAddress() == [7, 6, 9] or res[0].getAddress() == [6, 7 , 9])
-'''
-'''
+
 class ROPChainTestCase4(unittest.TestCase):
 
     def setUp(self):
@@ -277,6 +272,5 @@ class ROPChainTestCase4(unittest.TestCase):
         res = list(self.rop.Start({"eax": Exp(257)}))
         assert len(res) == 1 and res[0].getAddress() == [3, 1, 2]
 
-'''
 if __name__ == "__main__":
     unittest.main()

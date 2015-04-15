@@ -381,7 +381,6 @@ class Exp:
 
         if operands != None and reg in operands.keys():
             exp.length = operands[reg].length
-            reg = str(operands[reg])
 
         if operands != None:
             if isinstance(exp, Exp):

@@ -271,14 +271,16 @@ class ROPParserX86:
             if len(ins[1]) > 0:
                 exps = Exp.parse(ins[1][0], operands)
                 for reg, val in exps.items():
-                    print reg, val
                     if reg == "temp":
                         # temp variable, no need to assign
                         continue
+                    if "*" in reg:
+                        # this can only be push inst
+                        regs.update({"[ " + str(regs["ssp"]) + " ]":val})
+                        continue
                     dst = Exp.parseOperand(op_str.split(", ")[0], {}, {})
-                    print dst
                     if str(dst) in self.regs:
-                        # GPRs
+                        # general purpose reg
                         regs.update({str(dst):val})
                     elif str(dst) in self.Tregs:
                         # subpart of GPRs
