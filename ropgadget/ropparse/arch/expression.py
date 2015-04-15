@@ -17,16 +17,18 @@ from copy import deepcopy
 			Expression Binary-op Expression
 
 		Binary-op:
-			&& || + - % & | ^ >> << == != > >= < <= $
+			&& || + - % & | ^ >> << == != > >= < <= $ #
 
 		Conditional-Expression:
 			Expression ? Expression : Expression;
 
                 A $ B : C is defined as take the Bth bit to Cth bit of A
+                A # B is defined as concat A and B
 '''
 class Exp:
     unaryOp = ["-", "*", "+", "&", "~", "C", "A", "P", "Z", "I", "O", "D", "S"]
-    binOp = {"*":1, "%":1, "/":1, "+":2, "-":2, ">>":3, "<<":3, "<":4, "<=":4, ">":4, ">=":4, "==":5, "!=":5, "&":6, "^":7, "|":8, "&&":9, "||":10, "?":11, "$":11, "=":12}
+    binOp = {"*":1, "%":1, "/":1, "+":2, "-":2, ">>":3, "<<":3, "<":4, "<=":4, ">":4, ">=":4, "==":5, "!=":5, "&":6, "^":7, "|":8, "&&":9, "||":10, "?":11, "$":11, "#":11, "=":12}
+    defaultLength = 32
     def __init__(self, left, op=None, right=None, condition=None):
         if condition != None:			
             self.left = left			
@@ -39,11 +41,12 @@ class Exp:
             self.right = right			
             self.condition = condition            
         
-        # default reg size
+        # default size
+        self.length = 1
         '''
-        self.size = 1
-        if self.op == '$':
-            self.size = right - left + 1
+        elif self.op == '#':
+            print left, right
+            self.length = left.length + right.length
         if isinstance(left, Exp):
             self.size = max(self.size, left.size)
         elif not isinstance(left, str):
@@ -52,31 +55,21 @@ class Exp:
             self.size = max(self.size, 32)
         elif left[0] == 'r':
             self.size = max(self.size, 64)
-
-        # TODO: mem location, size
-        if isinstance(right, Exp):
-            self.size = max(self.size, right.size)
-        elif right is None or not isinstance(right, str):
-            pass
-        elif right[0] == 'e':
-            self.size = max(self.size, 32)
-        elif right[0] == 'r':
-            self.size = max(self.size, 64)
-            '''
+        '''
 
     def __str__(self):
         if self.condition is not None:
             if self.op == "condition":
-                return "("+str(self.condition)+"?" + str(self.left) + ":" + str(self.right)+")"
+                return "( "+str(self.condition)+" ? " + str(self.left) + " : " + str(self.right)+" )"
             else:
-                return "("+str(self.condition)+"$" + str(self.left) + ":" + str(self.right)+")"
+                return "( "+str(self.condition)+" $ " + str(self.left) + " : " + str(self.right)+" )"
         else:
             if self.right is not None:
-                return "(" + str(self.left)+ self.op + str(self.right) + ")"
+                return "( " + str(self.left) + " " + self.op + " " + str(self.right) + " )"
             elif self.op is not None:
                 if self.op == "*":
-                    return "[" + str(self.left) + "]"
-                return  "(" + self.op + str(self.left) + ")"
+                    return "[ " + str(self.left) + " ]"
+                return  "( " + self.op + " " + str(self.left) + " )"
             else:
                 return str(self.left)
 
@@ -212,7 +205,10 @@ class Exp:
         if string is None:
             return True 
         try:
-            int(string)
+            if isinstance(string, str) and "0x" in string:
+                int(string, 16)
+            else:
+                int(string)
             return True
         except ValueError:
             return False
@@ -251,26 +247,31 @@ class Exp:
                 )
 
     def binding(self, mapping):
+        if str(self) in mapping.keys():
+            exp = deepcopy(mapping[str(self)])
+            exp.length = self.length
+            return exp
         left = True 
         right = True
         condition = True
         for k,v in mapping.items():
-            if k == self.left:
+            if k == str(self.left):
                 self.left = deepcopy(v)
                 left = False
-            if k == self.right:
+            if k == str(self.right):
                 self.right = deepcopy(v)
                 right = False
-            if k == self.condition:
+            if k == str(self.condition):
                 self.condition = deepcopy(v)
                 condition = False
 
         if left and isinstance(self.left, Exp):
-            self.left.binding(mapping)
+            self.left = self.left.binding(mapping)
         if right and isinstance(self.right, Exp):
-            self.right.binding(mapping)
+            self.right = self.right.binding(mapping)
         if condition and isinstance(self.condition, Exp):
-            self.condition.binding(mapping)
+            self.condition = self.condition.binding(mapping)
+        return self
 
     @staticmethod
     def parseOperand(string, regs, Tregs):
@@ -282,24 +283,37 @@ class Exp:
                 # constant
                 return Exp(int(string, 16))
             except ValueError:
-                # register
+                # sub register
                 if string in Tregs.keys():
                     exp = Exp.parseExp(Tregs[string][0].split())
-                    exp.binding(regs)
+                    exp.length = Tregs[string][2]
+                    exp = exp.binding(regs)
                     return exp
                 exp = Exp(string)
                 if string == "esp" or string == "rsp":
                     exp = Exp("ssp")
                 if string in regs.keys():
-                    exp.binding(regs)
+                    exp = exp.binding(regs)
+                exp.length = Exp.defaultLength
                 return exp
         else:
             # mem
+            byte = string.split(" ptr [")[0]
+            size = 0
+            if byte == "qword":
+                size = 64
+            elif byte == "dword":
+                size = 32
+            elif byte == "word":
+                size = 16
+            elif byte == "byte":
+                size = 8
             s = string.split("[")[1][:-1]
             s = s.replace("*", " * ")
             exp = Exp(Exp.parseExp(s.split()), "*")
             if str(exp) in regs.keys():
                 exp = regs[str(exp)]
+            exp.length = size
             return exp
 
     @staticmethod
@@ -308,9 +322,7 @@ class Exp:
         if len(tokens) == 0:
             return exp
         exp = Exp.parseBinExp(exp, tokens, 12)
-        if isinstance(exp, Exp):
-            return exp
-        return Exp(exp)
+        return exp
 
     @staticmethod
     def parseUnaryExp(tokens):
@@ -325,7 +337,7 @@ class Exp:
             return exp
 
         left = tokens.pop(0)
-        return left
+        return Exp(left)
 
     @staticmethod
     def parseBinExp(left, tokens, prec):
@@ -368,50 +380,19 @@ class Exp:
         exp = Exp.parseExp(val.split()[:])
 
         if operands != None and reg in operands.keys():
+            exp.length = operands[reg].length
             reg = str(operands[reg])
 
         if operands != None:
             if isinstance(exp, Exp):
-                exp.binding(operands)
+                exp = exp.binding(operands)
             elif exp in operands.keys():
                 exp = operands[exp]
 
         if not isinstance(exp, Exp):
             exp = Exp(exp)
+        if operands is not None and "operand1" in operands.keys():
+            exp.length = operands["operand1"].length
         return {reg:exp}
 
-
-
-if __name__ == '__main__':
-    a = Exp(1,"-")
-    b = Exp("EAX")
-    b.binding({"EAX":Exp("EAX", "+", 4)})
-    print b
-    c = Exp("EBX", "==", 4)
-    print c
-    d = Exp(a, "condition", b, c)
-    print d
-    print Exp(4, "+" , 1)
-    print Exp(a, "^" , 1)
-    print Exp("esp", "*")
-    e = Exp("b", "&" , 0xffff)
-    print e
-    e.binding({"b":b})
-    print e
-    print Exp( Exp("EAX", ">>" , d ) , "+" , Exp("c", "-" ,1) )
-    print Exp.parseOperand("byte ptr [rax + 0x15]", {}, {})
-    print Exp.parseOperand("byte ptr [rax + 0xffffffffffffff83]", {}, {})
-    print Exp.parseOperand("cl",{"cl":1},{})
-    exps = Exp.parse("operand1 = operand2", { "operand1":Exp("eax"), "operand2":Exp("ebx")})
-    for k,v in exps.items():
-        print k, "==>", v
-    exps = Exp.parse("operand1 = operand1 + operand2 + ( CF == 0 ) ? 1 : 0", {"operand1":Exp("eax"), "operand2":Exp(4)})
-    for k,v in exps.items():
-        print k, "==>", v
-    exps = Exp.parse("operand1 = ( operand2 - 1 ) $ 8 : 15", {"operand1":Exp("ax"), "operand2":Exp("ecx")})
-    for k,v in exps.items():
-        print k, "==>", v
-    exps = Exp.parse("operand1 = operand2 $ 0 : 15", {"operand1":Exp("ax"), "operand2":Exp("eax")})
-    for k,v in exps.items():
-        print k, "==>", v
 

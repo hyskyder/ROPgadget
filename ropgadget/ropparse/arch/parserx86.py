@@ -16,37 +16,36 @@ class X86:
             "r13", "r14", "r15", "CS", "DS", "ES", "FS", "GS", "SS"]
     regs32 = ["eax", "ebx", "ecx", "edx", "CS", "DS", "ES", "FS", "GS", "SS", "esi", "edi", "ebp", "esp", "eip"]
     Tregs64 = {
-            "eax" : ["rax $ 0 : 31", "rax = rax & 0xffffffff00000000 | eax"],
-            "ax" : ["rax $ 0 : 15", "rax = rax & 0xffffffffffff0000 | ax"],
-            "ah" : ["rax $ 8 : 15", "rax = rax & 0xffffffffffff00ff | ah"],
-            "al" : ["rax $ 0 : 7", "rax = rax & 0xffffffffffffff00 | al"],
-            "ebx" : ["rbx $ 0 : 31", "rbx = rbx & 0xffffffff00000000 | ebx"],
-            "bx" : ["rbx $ 0 : 15", "rbx = rbx & 0xffffffffffff0000 | bx"],
-            "bh" : ["rbx $ 8 : 15", "rbx = rbx & 0xffffffffffff00ff | bh"],
-            "bl" : ["rbx $ 0 : 7", "rbx = rbx & 0xffffffffffffff00 | bl"],
-            "ecx" : ["rcx $ 0 : 31", "rcx = rcx & 0xffffffff00000000 | ecx"],
-            "cx" : ["rcx $ 0 : 15", "rcx = rcx & 0xffffffffffff0000 | cx"],
-            "ch" : ["rcx $ 8 : 15", "rcx = rcx & 0xffffffffffff00ff | ch"],
-            "cl" : ["rcx $ 0 : 7", "rcx = rcx & 0xffffffffffffff00 | cl"],
-            "edx" : ["rdx $ 0 : 31", "rdx = rdx & 0xffffffff00000000 | edx"],
-            "dx" : ["rdx $ 0 : 15", "rdx = rdx & 0xffffffffffff0000 | dx"],
-            "dh" : ["rdx $ 8 : 15", "rdx = rdx & 0xffffffffffff00ff | dh"],
-            "dl" : ["rdx $ 0 : 7", "rdx = rdx & 0xffffffffffffff00 | dl"]
+            "eax" : ["rax $ 0 : 31", "rax = ( rax $ 32 : 63 ) # eax", 32],
+            "ax" : ["rax $ 0 : 15", "rax = ( rax $ 16 : 63 ) # ax", 16],
+            "ah" : ["rax $ 8 : 15", "rax = ( rax $ 16 : 63 ) # ah # ( rax $ 0 : 7 )", 8],
+            "al" : ["rax $ 0 : 7", "rax = ( rax $ 8 : 63 ) # al", 8],
+            "ebx" : ["rbx $ 0 : 31", "rbx = ( rbx $ 32 : 63 ) # ebx", 32],
+            "bx" : ["rbx $ 0 : 15", "rbx = ( rbx $ 16 : 63 ) # bx", 16],
+            "bh" : ["rbx $ 8 : 15", "rbx = ( rbx $ 16 : 63 ) # bh # ( rbx $ 0 : 7 )", 8],
+            "bl" : ["rbx $ 0 : 7", "rbx = ( rbx $ 8 : 63 ) # bl", 8],
+            "ecx" : ["rcx $ 0 : 31", "rcx = ( rcx $ 32 : 63 ) # ecx", 32],
+            "cx" : ["rcx $ 0 : 15", "rcx = ( rcx $ 16 : 63 ) # cx", 16],
+            "ch" : ["rcx $ 8 : 15", "rcx = ( rcx $ 16 : 63 ) # ch # ( rcx $ 0 : 7 )", 8],
+            "cl" : ["rcx $ 0 : 7", "rcx = ( rcx $ 8 : 63 ) # cl", 8],
+            "edx" : ["rdx $ 0 : 31", "rdx = ( rdx $ 32 : 63 ) # edx", 32],
+            "dx" : ["rdx $ 0 : 15", "rdx = ( rdx $ 16 : 63 ) # dx", 16],
+            "dh" : ["rdx $ 8 : 15", "rdx = ( rdx $ 16 : 63 ) # dh # ( rdx $ 0 : 7 )", 8],
+            "dl" : ["rdx $ 0 : 7", "rdx = ( rdx $ 8 : 63 ) # dl", 8],
         }
     Tregs32 = {
-            "ax" : ["eax $ 0 : 15", "eax = eax & 0xffff0000 | ax"],
-            "ah" : ["eax $ 8 : 15", "eax = eax & 0xffff00ff | ah"],
-            "al" : ["eax $ 0 : 7", "eax = eax & 0xffffff00 | al"],
-            "bx" : ["ebx $ 0 : 15", "ebx = ebx & 0xffff0000 | bx"],
-            "bh" : ["ebx $ 8 : 15", "ebx = ebx & 0xffff00ff | bh"],
-            "bl" : ["ebx $ 0 : 7", "ebx = ebx & 0xffffff00 | bl"],
-            "cx" : ["ecx $ 0 : 15", "ecx = ecx & 0xffff0000 | cx"],
-            "ch" : ["ecx $ 8 : 15", "ecx = ecx & 0xffff00ff | ch"],
-            "cl" : ["ecx $ 0 : 7", "ecx = ecx & 0xffffff00 | cl"],
-            "dx" : ["edx $ 0 : 15", "edx = edx & 0xffff0000 | dx"],
-            "dh" : ["edx $ 8 : 15", "edx = edx & 0xffff00ff | dh"],
-            "dl" : ["edx $ 0 : 7", "edx = edx & 0xffffff00 | dl"],
-
+            "ax" : ["eax $ 0 : 15", "eax = ( eax $ 16 : 31 ) # ax", 16],
+            "ah" : ["eax $ 8 : 15", "eax = ( eax $ 16 : 31 ) # ah # ( eax $ 0 : 7 )", 8],
+            "al" : ["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8],
+            "bx" : ["ebx $ 0 : 15", "ebx = ( ebx $ 16 : 31 ) # bx", 16],
+            "bh" : ["ebx $ 8 : 15", "ebx = ( ebx $ 16 : 31 ) # bh # ( ebx $ 0 : 7 )", 8],
+            "bl" : ["ebx $ 0 : 7", "ebx = ( ebx $ 8 : 31 ) # bl", 8],
+            "cx" : ["ecx $ 0 : 15", "ecx = ( ecx $ 16 : 31 ) # cx", 16],
+            "ch" : ["ecx $ 8 : 15", "ecx = ( ecx $ 16 : 31 ) # ch # ( ecx $ 0 : 7 )", 8],
+            "cl" : ["ecx $ 0 : 7", "ecx = ( ecx $ 8 : 31 ) # cl", 8],
+            "dx" : ["edx $ 0 : 15", "edx = ( edx $ 16 : 31 ) # dx", 16],
+            "dh" : ["edx $ 8 : 15", "edx = ( edx $ 16 : 31 ) # dh # ( edx $ 0 : 7 )", 8],
+            "dl" : ["edx $ 0 : 7", "edx = ( edx $ 8 : 31 ) # dl", 8],
     }
     # Instructions that modifty the execution path
     Control = ["ret", "iret", "int", "into", "enter", "leave", "call", "jmp", "ja", "jae", "jb", "jbe", "jc", "je","jnc", "jne", "jnp", "jp", "jg", "jge", "jl", "jle", "jno", "jns", "jo", "js"]
@@ -189,10 +188,12 @@ class ROPParserX86:
             self.regs = X86.regs32 + X86.FLAG
             self.Tregs = X86.Tregs32
             self.aligned = 4
+            self.default = 32
         else:
             self.regs = X86.regs64 + X86.FLAG
             self.Tregs = X86.Tregs64
             self.aligned = 8
+            self.default = 64
 
     def parse(self):
         formulas = []
@@ -228,13 +229,13 @@ class ROPParserX86:
             # control transfer ins
             if prefix in ["ret", "call"]:
                 operand1 = None
-                operand1 = Exp.parseOperand(op_str.split(" ")[0], regs, self.Tregs)
+                operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
                 dst = Exp.parseExp(ins[2][0].split())
                 if operand1 is None:
-                    dst.binding({"operand1":0})
+                    dst = dst.binding({"operand1":0})
                 else:
-                    dst.binding({"operand1":operand1})
-                dst.binding(regs)
+                    dst = dst.binding({"operand1":operand1})
+                dst = dst.binding(regs)
                 regs.update({"sip":dst})
                 # only ret inst can modify ssp
                 if prefix == "ret":
@@ -248,8 +249,8 @@ class ROPParserX86:
             # handle jmp
             operand1 = Exp.parseOperand(op_str.split(" ")[0], regs, self.Tregs)
             dst = Exp.parseExp(ins[2][0].split())
-            dst.binding({"operand1":operand1})
-            dst.binding(regs)
+            dst = dst.binding({"operand1":operand1})
+            dst = dst.binding(regs)
             regs.update({"sip": dst})
             return regs
         else:
@@ -270,10 +271,12 @@ class ROPParserX86:
             if len(ins[1]) > 0:
                 exps = Exp.parse(ins[1][0], operands)
                 for reg, val in exps.items():
+                    print reg, val
                     if reg == "temp":
                         # temp variable, no need to assign
                         continue
                     dst = Exp.parseOperand(op_str.split(", ")[0], {}, {})
+                    print dst
                     if str(dst) in self.regs:
                         # GPRs
                         regs.update({str(dst):val})
@@ -281,8 +284,8 @@ class ROPParserX86:
                         # subpart of GPRs
                         temp = Exp.parse(self.Tregs[str(dst)][1], {})
                         for k, v in temp.items():
-                            v.binding(regs)
-                            v.binding({str(dst):val})
+                            v = v.binding(regs)
+                            v = v.binding({str(dst):val})
                             regs.update({k:v})
                     else:
                         # mem
