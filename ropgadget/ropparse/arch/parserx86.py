@@ -257,7 +257,7 @@ class ROPParserX86:
 			# computing ins
             operand1 = None
             operand2 = None
-            operands = {}
+            operands = {"ssp":regs["ssp"]}
             # handle special cases
             if ins[0] == 1:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
@@ -276,11 +276,13 @@ class ROPParserX86:
                         continue
                     if "*" in reg:
                         # this can only be push inst
+                        val.length = Exp.defaultLength
                         regs.update({"[ " + str(regs["ssp"]) + " ]":val})
                         continue
                     dst = Exp.parseOperand(op_str.split(", ")[0], {}, {})
-                    if str(dst) in self.regs:
+                    if str(dst) == "ssp" or str(dst) in self.regs:
                         # general purpose reg
+                        val.length = Exp.defaultLength
                         regs.update({str(dst):val})
                     elif str(dst) in self.Tregs:
                         # subpart of GPRs
@@ -288,6 +290,7 @@ class ROPParserX86:
                         for k, v in temp.items():
                             v = v.binding(regs)
                             v = v.binding({str(dst):val})
+                            v.length = Exp.defaultLength
                             regs.update({k:v})
                     else:
                         # mem
@@ -303,11 +306,14 @@ class ROPParserX86:
                     tokens = flag.split()
                     if len(tokens) == 1:
                         for k, v in exps.items():
-                            regs.update({tokens[0]:Exp(v, tokens[0][:-1])})
+                            exp = Exp(v, tokens[0][:-1])
+                            exp.length = 1
+                            regs.update({tokens[0]:exp})
                     else:
                         f = Exp.parse(flag, {})
                         for k,v in f.items():
                             # "CF = 1" 
+                            v.length = 1
                             regs.update({tokens[0]:v})
             i = i + 1
             return self.parseInst(regs, insts, i)

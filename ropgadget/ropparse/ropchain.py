@@ -48,9 +48,15 @@ class ROPChain:
             elif exp.left in self.z3Regs.keys():
                 return self.z3Regs[exp.left]
             elif isinstance(exp.left, str) and "0x" in exp.left:
-                return int(exp.left, 16)
+                if exp.length == 0:
+                    return (int(exp.left, 16))
+                else:
+                    return BitVecVal(int(exp.left, 16), exp.length)
             else:
-                return int(exp.left)
+                if exp.length == 0:
+                    return (int(exp.left))
+                else:
+                    return BitVecVal(int(exp.left), exp.length)
         reg = None
         if exp.op is not None and exp.op == "condition":
             return If(self.Convert(exp.condition), self.Convert(exp.left), self.Convert(exp.right))
@@ -81,14 +87,7 @@ class ROPChain:
                 elif exp.op == '!=':
                     return self.Convert(exp.left) != self.Convert(exp.right)
                 elif exp.op == '#':
-                    left = self.Convert(exp.left)
-                    right = self.Convert(exp.right)
-                    print exp
-                    if not is_bv(left):
-                        left = BitVecVal(left, exp.left.length)
-                    if not is_bv(right):
-                        right = BitVecVal(right, exp.right.length)
-                    return Concat(left, right)
+                    return Concat(self.Convert(exp.left), self.Convert(exp.right))
                 else:
                     pass
             else:
@@ -188,13 +187,8 @@ class ROPChain:
             if targets[k].getCategory() == 0:
                 if regs[k].getCategory() == 3 and regs[k].isControl():
                     continue
-                if regs[k].getCategory() == 0:
-                    if str(simplify( IntVal(self.Convert(targets[k])) == IntVal(self.Convert(regs[k])))) == "True":
-                        continue
-                else:
-                    print (regs[k])
-                    if str(simplify( (self.Convert(targets[k])) == (self.Convert(regs[k])))) == "True":
-                        continue
+                if str(simplify( self.Convert(targets[k]) == self.Convert(regs[k]))) == "True":
+                    continue
                 return False
             elif regs[k].getCategory() == 3:
                 return False  
@@ -281,10 +275,10 @@ class ROPChain:
     def Chain(self, reserve, reg, val, targets, cat, prev, nex, deepth):
         chained = set()
         print "searching for ", reg, " ==> ", val , " throught ", targets, " category ", cat, " deepth ", deepth, " limit ", self.deepth
+        print "based on ", nex
         if len(targets) == 0 or deepth > self.deepth:
             return chained
         target = targets.pop(0)
-        print nex
         if len(targets) != 0:
             # DFS, only works for regs + regs
             if target in self.categories.keys()  and 2 in self.categories[target].keys():
@@ -316,7 +310,7 @@ class ROPChain:
                 if target in semantic.regs.keys():
                     if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}):
                         chained.add(c)
-                    chained.update(self.Chain(reserve, reg, val, c.regs[reg], 6, prev, c, deepth+1))
+                    chained.update(self.Chain(reserve, reg, val, c.regs[reg].getRegs(), 6, prev, c, deepth+1))
             chained.update(self.ChainRetGadget(c.regs[reg], prev, nex, deepth+1))
             return chained
 
@@ -564,7 +558,7 @@ class ROPChain:
             for k in self.categories[reg]:
                 print reg, "\t======>\t", k , " with ", len(self.categories[reg][k])
                 for s in self.categories[reg][k]:
-                    pass
+                    print s
 
 if __name__ == '__main__':
     regs = {"sip":Exp("ssp", "*"), "eax": Exp("1")}

@@ -6,6 +6,7 @@ class Semantic:
     def __init__(self, regs, gadget):
         self.gadgets = []
         self.gadgets.append(gadget)
+        self.rets = [regs["sip"]]
         self.regs = regs
         self.deepth = 1
 
@@ -13,7 +14,7 @@ class Semantic:
         if prev is None:
             return 
         for k, v in self.regs.items():
-            v.binding(prev)
+            v = v.binding(prev)
             self.regs.update({k:v})
 
     def chain(self, semantic): 
@@ -21,13 +22,20 @@ class Semantic:
         #print self, semantic
         if semantic is None:
             return
+        # all the gadgets addrs
         temp = []
         temp.extend(semantic.gadgets)
         temp.extend(self.gadgets)
         self.gadgets = temp
+        # all the ret addrs in stack of gadgets
+        temp = []
+        temp.extend(semantic.rets)
+        temp.extend(self.rets)
+        self.rets = temp
+
         for k,v in self.regs.items(): 
             t = deepcopy(v)
-            t.binding(semantic.regs)
+            t = t.binding(semantic.regs)
             self.regs.update({k:t})
         for k,v in semantic.regs.items():
             if k not in self.regs.keys():

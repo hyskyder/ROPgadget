@@ -41,8 +41,10 @@ class Exp:
             self.right = right			
             self.condition = condition            
         
-        # default size
-        self.length = 1
+        # default size for constant
+        self.length = 0
+        if self.op == '$':
+            self.length = int(str(right)) - int(str(left)) + 1
         '''
         elif self.op == '#':
             print left, right
@@ -111,6 +113,8 @@ class Exp:
         # TODO: for conditional val
         if self.isCond():
             return 5
+        if self.condition is not None and self.op == '$':
+            return self.condition.getCategory()
 
         left = 0
         right = 0
@@ -133,34 +137,34 @@ class Exp:
                 return 3
 
         if left < 3 and right < 3:
-            if left == 1 and right == 1:
+            if left == 1 and right == 1 and self.left.getRegs() != self.right.getRegs():
                 return 2
             return max(left, right)
         return min(4, left + right)
 
     def getRegs(self):
-        regs = []
+        regs = set()
         if self.left == None:
             pass
         elif isinstance(self.left, Exp):
-            regs.extend(self.left.getRegs())
+            regs.update(self.left.getRegs())
         elif not self.isInt(self.left):
-            regs.append(self.left)
+            regs.add(self.left)
 
         if self.right == None:
             pass
         elif isinstance(self.right, Exp):
-            regs.extend(self.right.getRegs())
+            regs.update(self.right.getRegs())
         elif not self.isInt(self.right):
-            regs.append(self.right)
+            regs.add(self.right)
 
         if self.condition== None:
             pass
         elif isinstance(self.condition, Exp):
-            regs.extend(self.condition.getRegs())
+            regs.update(self.condition.getRegs())
         elif not self.isInt(self.condition):
-            regs.append(self.condition)
-        return list(set(regs))
+            regs.add(self.condition)
+        return list(regs)
     
     def isConstant(self):
         constant = True
@@ -286,8 +290,8 @@ class Exp:
                 # sub register
                 if string in Tregs.keys():
                     exp = Exp.parseExp(Tregs[string][0].split())
-                    exp.length = Tregs[string][2]
                     exp = exp.binding(regs)
+                    exp.length = Tregs[string][2]
                     return exp
                 exp = Exp(string)
                 if string == "esp" or string == "rsp":
