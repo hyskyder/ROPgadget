@@ -55,6 +55,7 @@ architectures supported:
                                          epilog="""examples:
   ROPgadget.py --binary ./test-suite-binaries/elf-Linux-x86 
   ROPgadget.py --binary ./test-suite-binaries/elf-Linux-x86 --ropchain
+  ROPgadget.py --binary ./test-suite-binaries/elf-Linux-x86 --ropparse
   ROPgadget.py --binary ./test-suite-binaries/elf-Linux-x86 --depth 3
   ROPgadget.py --binary ./test-suite-binaries/elf-Linux-x86 --string "main"
   ROPgadget.py --binary ./test-suite-binaries/elf-Linux-x86 --string "m..n"
@@ -88,6 +89,7 @@ architectures supported:
         parser.add_argument("--rawMode",            type=str, metavar="<mode>",       help="Specify a mode for a raw file")
         parser.add_argument("--offset",             type=str, metavar="<hexaddr>",    help="Specify an offset for gadget addresses")
         parser.add_argument("--ropchain",           action="store_true",              help="Enable the ROP chain generation")
+        parser.add_argument("--ropparse",           action="store_true",              help="Enable the ROP parse generation")
         parser.add_argument("--thumb"  ,            action="store_true",              help="Use the thumb mode for the search engine (ARM only)")
         parser.add_argument("--console",            action="store_true",              help="Use an interactive console for search engine")
         parser.add_argument("--norop",              action="store_true",              help="Disable ROP search engine")

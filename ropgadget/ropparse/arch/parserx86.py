@@ -240,7 +240,7 @@ class ROPParserX86:
                 # only ret inst can modify ssp
                 if prefix == "ret":
                     ssp = regs["ssp"]
-                    ssp = Exp(ssp, "-", self.aligned)
+                    ssp = Exp(ssp, "-", Exp(self.aligned))
                     if operand1 is not None:
                         ssp = Exp(ssp, "-", operand1)
                     regs.update({"ssp":ssp})
@@ -296,9 +296,9 @@ class ROPParserX86:
                         # mem
                         regs.update({str(reg):val})
                 if prefix == "push":
-                    regs.update({"ssp":Exp(regs["ssp"], "+", self.aligned)})
+                    regs.update({"ssp":Exp(regs["ssp"], "+", Exp(self.aligned))})
                 if prefix == "pop":
-                    regs.update({"ssp":Exp(regs["ssp"], "-", self.aligned)})
+                    regs.update({"ssp":Exp(regs["ssp"], "-", Exp(self.aligned))})
 
             # evaluate flag regs base on exp
             if len(ins[2]) != 0:

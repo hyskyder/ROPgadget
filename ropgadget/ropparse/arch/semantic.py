@@ -6,7 +6,9 @@ class Semantic:
     def __init__(self, regs, gadget):
         self.gadgets = []
         self.gadgets.append(gadget)
-        self.rets = [regs["sip"]]
+        self.rets = []
+        if "sip" in regs.keys():
+            self.rets.append(regs["sip"])
         self.regs = regs
         self.deepth = 1
 
@@ -27,11 +29,6 @@ class Semantic:
         temp.extend(semantic.gadgets)
         temp.extend(self.gadgets)
         self.gadgets = temp
-        # all the ret addrs in stack of gadgets
-        temp = []
-        temp.extend(semantic.rets)
-        temp.extend(self.rets)
-        self.rets = temp
 
         for k,v in self.regs.items(): 
             t = deepcopy(v)
@@ -40,6 +37,14 @@ class Semantic:
         for k,v in semantic.regs.items():
             if k not in self.regs.keys():
                 self.regs.update({k:v})
+
+        # all the ret addrs in stack of gadgets
+        temp = []
+        ssp = semantic.regs["ssp"]
+        temp.extend(semantic.rets)
+        for ret in self.rets:
+            temp.append(ret.binding(semantic.regs))
+        self.rets = temp
         self.deepth = self.deepth + semantic.deepth
     
     def getAddress(self):
@@ -57,8 +62,8 @@ class Semantic:
                 temp += inst["mnemonic"] + ", " + inst["op_str"] + "\n"
             string += temp
 
-        for reg, val in self.regs.items():
-            string += str(reg) + "\t======>\t" + str(val) + "\n"
+        #for reg, val in self.regs.items():
+            #string += str(reg) + "\t======>\t" + str(val) + "\n"
         return string
 
     def __eq__(self, other):

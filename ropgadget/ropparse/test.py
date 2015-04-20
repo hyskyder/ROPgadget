@@ -183,7 +183,7 @@ class ROPChainTestCase1(unittest.TestCase):
         print "Testing with multi regs..............................."
         res = list(self.rop.Start({"eax": Exp(1), "ebx": Exp(1)}))
         assert len(res) == 1 and len(res[0].gadgets) == 2 and res[0].getAddress() == [1, 3]
-        # TODO need to sort the multi regs first, for now it is empty
+        # FIXME: need to sort the multi regs first, for now it is empty
         res = list(self.rop.Start({"ebx":Exp("eax"), "eax": Exp(1)}))
         assert len(res) == 0
 
@@ -279,6 +279,21 @@ class ROPChainTestCase4(unittest.TestCase):
         exp.length = 32
         res = list(self.rop.Start({"eax": exp}))
         assert len(res) == 2 and ( (res[0].getAddress() == [3, 1, 2] and res[1].getAddress() == [3, 2, 1]) or (res[0].getAddress() == [3, 2, 1] and res[1].getAddress() == [3, 1, 2]))
+
+class ROPChainTestCase5(unittest.TestCase):
+    def setUp(self):
+        gadget1 = [{"mnemonic":"pop", "op_str":"eax", "vaddr":1},      {"mnemonic":"ret", "op_str": "", "vaddr":"1"}]
+        gadget2 = [{"mnemonic":"pop", "op_str":"ebx", "vaddr":2},  {"mnemonic":"ret", "op_str":"", "vaddr":2}]
+        gadget3 = [{"mnemonic":"add", "op_str":"eax, ebx", "vaddr":3},  {"mnemonic":"ret", "op_str":"", "vaddr":3}]
+        gadget4 = [{"mnemonic":"mov", "op_str":"ecx, byte ptr [eax]", "vaddr":4},  {"mnemonic":"ret", "op_str":"", "vaddr":3}]
+
+        gadgets = [gadget1, gadget2, gadget3, gadget4]
+        self.rop = ROPChain(BinaryStub(), gadgets, False, 1)
+
+    def testComplexMem(self):
+        print "Testing complex mem location for reg sat..........................................."
+
+
 
 if __name__ == "__main__":
     unittest.main()

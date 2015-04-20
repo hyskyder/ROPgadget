@@ -57,12 +57,12 @@ class ROPChain:
                     return (int(exp.left))
                 else:
                     return BitVecVal(int(exp.left), exp.length)
-        reg = None
         if exp.op is not None and exp.op == "condition":
             return If(self.Convert(exp.condition), self.Convert(exp.left), self.Convert(exp.right))
         else:
             if exp.right is not None:
                 if exp.op == '+':
+                    print exp
                     return self.Convert(exp.left) + self.Convert(exp.right)
                 elif exp.op == '-':
                     return self.Convert(exp.left) - self.Convert(exp.right)
@@ -180,7 +180,8 @@ class ROPChain:
         return count
 
     # check whether a set of regs is sat to the targets
-    def CheckRegsSat(self, regs, targets):
+    # FIXME: if the regs is something in stack, need to check it donesn't conflict with ret addr
+    def CheckRegsSat(self, regs, targets, semantic):
         for k in targets.keys():
             if k not in regs.keys():
                 return False
@@ -241,7 +242,7 @@ class ROPChain:
                 prev = None
                 if semantic is not None:
                     prev = semantic.regs
-                if semantic is not None and reg in semantic.regs.keys() and self.CheckRegsSat({reg:semantic.regs[reg]}, {reg:val}):
+                if semantic is not None and reg in semantic.regs.keys() and self.CheckRegsSat({reg:semantic.regs[reg]}, {reg:val}, semantic):
                     temp.add(semantic)
                     continue
                 nex = self.Chain(reserve, reg, val, [reg], val.getCategory(), prev, None, 0)
@@ -255,7 +256,7 @@ class ROPChain:
             chained = deepcopy(temp)
         final = []
         for t in chained:
-            if self.CheckRegsSat(t.regs, regs):
+            if self.CheckRegsSat(t.regs, regs, t):
                 final.append(t)
 
         if len(chained) <= 1:
@@ -264,6 +265,7 @@ class ROPChain:
             print  len(final), "unique gadgets found"
         for s in final:
             print s
+
         return final 
 
     def Overlap(self, reserve, regs):
@@ -308,7 +310,7 @@ class ROPChain:
                 c.chain(semantic)
                 c.binding(prev)
                 if target in semantic.regs.keys():
-                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}):
+                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
                         chained.add(c)
                     chained.update(self.Chain(reserve, reg, val, c.regs[reg].getRegs(), 6, prev, c, deepth+1))
             chained.update(self.ChainRetGadget(c.regs[reg], prev, nex, deepth+1))
@@ -328,7 +330,7 @@ class ROPChain:
                         c = semantic
                     c.binding(prev)
                     print "checking ", c.regs[reg], " == ", val
-                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}):
+                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
                         chained.add(c)
                     else:
                         chained.update(self.Chain(reserve, reg, val,[str(c.regs[reg])], -1, prev, c, deepth+1))
@@ -347,7 +349,7 @@ class ROPChain:
                         c = semantic
                     c.binding(prev)
                     print "checking ", c.regs[reg], " == ", val
-                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}):
+                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
                         chained.add(c)
 
         # checks reg based
@@ -364,7 +366,7 @@ class ROPChain:
                         c = semantic
                     c.binding(prev)
                     print "checking ", c.regs[reg], " == ", val
-                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}):
+                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
                         chained.add(c)
                     else:
                         chained.update(self.Chain(reserve, reg, val, semantic.regs[target].getRegs(), cat, prev, c, deepth+1))
@@ -381,7 +383,7 @@ class ROPChain:
                         c = semantic
                     c.binding(prev)
                     print "checking ", c.regs[reg], " == ", val
-                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}):
+                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
                         chained.add(c)
                     else:
                         chained.update(self.Chain(reserve, reg, val, semantic.regs[reg].getRegs(), cat, prev, c, deepth+1))
@@ -398,7 +400,7 @@ class ROPChain:
                         c = semantic
                     c.binding(prev)
                     print "checking ", c.regs[reg], " == ", val
-                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}):
+                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
                         chained.add(c)
                     else:
                         chained.update(self.Chain(reserve, reg, val, semantic.regs[reg].getCondition().getRegs(), cat, prev, c, deepth+1))
@@ -467,7 +469,9 @@ class ROPChain:
                 for semantic in self.categories[reg][0]:
                     c = deepcopy(nex)
                     c.chain(semantic)
-                    if self.Convert(c.regs["sip"].getCondition()) or simplify(self.Convert(c.regs["sip"].getCondition())) == "True":
+                    print c
+                    print c.regs["sip"]
+                    if c.regs["sip"].getCondition().isControl() or self.Convert(c.regs["sip"].getCondition()) or simplify(self.Convert(c.regs["sip"].getCondition())) == "True":
                         c.regs.update({"sip":c.regs["sip"].meetCondition()})
                         fixed.add(c)
 
@@ -475,7 +479,9 @@ class ROPChain:
                 for semantic in self.categories[reg][1]:
                     c = deepcopy(nex)
                     c.chain(semantic)
-                    if self.Convert(c.regs["sip"].getCondition()) or simplify(self.Convert(c.regs["sip"].getCondition())) == "True":
+                    print c
+                    print c.regs["sip"]
+                    if c.regs["sip"].getCondition().isControl() or self.Convert(c.regs["sip"].getCondition()) or simplify(self.Convert(c.regs["sip"].getCondition())) == "True":
                         c.regs.update({"sip":c.regs["sip"].meetCondition()})
                         fixed.add(c)
         else:
@@ -559,18 +565,4 @@ class ROPChain:
                 print reg, "\t======>\t", k , " with ", len(self.categories[reg][k])
                 for s in self.categories[reg][k]:
                     print s
-
-if __name__ == '__main__':
-    regs = {"sip":Exp("ssp", "*"), "eax": Exp("1")}
-    s1 = Semantic(regs, {"vaddr":0x1})
-    regs2 = {"sip":Exp("ssp", "*"), "ebx": Exp("eax")}
-    s2 = Semantic(regs2, {"vaddr":0x2})
-    exp = Exp("eax", "+", "ebx")
-    regs3 = {"sip":Exp(Exp("ssp", "+", 4), "*"), "ecx": exp}
-    s3 = Semantic(regs3, {"vaddr":0x3})
-    regs4 = {"sip":Exp("ssp", "*"), "ebx": Exp("1")}
-    s4 = Semantic(regs4, None)
-    s = [s1, s2, s3]
-    r = ROPChain(None, None, False)
-    r.semantics = s
 
