@@ -6,17 +6,22 @@ from arch.expression import Exp
 from capstone import *
 from copy import deepcopy
 from z3 import *
+import random
+import math
+import sys
 
 class ROPChain:
-    def __init__(self, binary, gadgets, opt, deepth = 0):
+    def __init__(self, binary, gadgets, opt, deepth = 1):
         self.binary = binary
         self.gadgets = gadgets
         # all the gadgets store by { reg : { cat : [] } }
         self.categories = {}
         # gadgets writes to mem
         self.mems = []
+        self.chained = set()
         self.semantics = []
         self.deepth = deepth
+        self.default = 5
         self.solver = Solver()
         self.z3Regs= {}
         self.optimized = opt
@@ -38,6 +43,23 @@ class ROPChain:
                 self.z3Regs.update({reg:ref})
         self.Category()
 
+    def Compare(self, left, right=None):
+        le = self.Convert(left)
+        if right is None:
+            return simplify(le)
+        re = self.Convert(right)
+
+        if isinstance(le, int):
+            le = BitVecVal(le, left.length)
+        elif le.sort() == IntSort():
+            le = BitVecRef( Z3_mk_int2bv(le.ctx_ref(), left.length, le.as_ast()), le.ctx)
+
+        if isinstance(re, int):
+            re = BitVecVal(re, right.length)
+        elif re.sort() == IntSort():
+            re = BitVecRef( Z3_mk_int2bv(re.ctx_ref(), right.length, re.as_ast()), re.ctx) 
+        return simplify(le == re)
+
     def Convert(self, exp):
         if not isinstance(exp.left, Exp):
             if exp.left == "ssp":
@@ -47,7 +69,7 @@ class ROPChain:
                     return self.z3Regs["rsp"]
             elif exp.left in self.z3Regs.keys():
                 return self.z3Regs[exp.left]
-            elif isinstance(exp.left, str) and "0x" in exp.left:
+            elif "0x" in str(exp.left):
                 if exp.length == 0:
                     return (int(exp.left, 16))
                 else:
@@ -61,43 +83,68 @@ class ROPChain:
             return If(self.Convert(exp.condition), self.Convert(exp.left), self.Convert(exp.right))
         else:
             if exp.right is not None:
+                left = self.Convert(exp.left)
+                right = self.Convert(exp.right)
+                if is_bv(left) and is_bv(right):
+                    # this only hanlde for Flag regs and GPR
+                    if left.size() < right.size() and left.size() == 1:
+                        left = ZeroExt(right.size() - left.size(), left)
+                    elif right.size() < left.size() and right.size() == 1:
+                        right = ZeroExt(left.size() - right.size(), right)
+                elif isinstance(left, int) or isinstance(right, int) or left.sort() == right.sort():
+                    pass
+                else:
+                    if is_int(left) and is_bv(right):
+                        left = BitVecRef(Z3_mk_int2bv(left.ctx_ref(), right.size(), left.as_ast()), left.ctx)
+                    elif is_int(right) and is_bv(left):
+                        right = BitVecRef(Z3_mk_int2bv(right.ctx_ref(), left.size(), right.as_ast()), right.ctx)
+
                 if exp.op == '+':
-                    print exp
-                    return self.Convert(exp.left) + self.Convert(exp.right)
+                    return left + right
                 elif exp.op == '-':
-                    return self.Convert(exp.left) - self.Convert(exp.right)
+                    return left - right
                 elif exp.op == '*':
-                    return self.Convert(exp.left) * self.Convert(exp.right)
+                    return left * right
                 elif exp.op == '%':
-                    return self.Convert(exp.left) % self.Convert(exp.right)
+                    return left % right
                 elif exp.op == '&':
-                    return self.Convert(exp.left) & self.Convert(exp.right)
+                    if is_bool(left) and is_bool(right):
+                        return And(left, right)
+                    return left & right
                 elif exp.op == '|':
-                    return self.Convert(exp.left) | self.Convert(exp.right)
+                    if is_bool(left) and is_bool(right):
+                        return Or(left, right)
+                    return left | right
                 elif exp.op == '^':
-                    return self.Convert(exp.left) ^ self.Convert(exp.right)
+                    if is_bool(left) and is_bool(right):
+                        return Xor(left, right)
+                    return left ^ right
                 elif exp.op == '$':
-                    return Extract(self.Convert(exp.right), self.Convert(exp.left), self.Convert(exp.condition))
+                    return Extract(right, left, self.Convert(exp.condition))
                 elif exp.op == '==':
-                    return self.Convert(exp.left) == self.Convert(exp.right)
+                    return left == right
                 elif exp.op == '>':
-                    return self.Convert(exp.left) > self.Convert(exp.right)
+                    return left > right
                 elif exp.op == '<':
-                    return self.Convert(exp.left) < self.Convert(exp.right)
+                    return left < right
                 elif exp.op == '!=':
-                    return self.Convert(exp.left) != self.Convert(exp.right)
+                    return left != right
                 elif exp.op == '#':
-                    return Concat(self.Convert(exp.left), self.Convert(exp.right))
+                    return Concat(left, right)
                 else:
                     pass
             else:
                 if exp.op is not None:
-                    if exp.op == '+':
+                    if exp.op == '~':
+                        if is_bool(self.Convert(exp.left)):
+                            return Not(self.Convert(exp.left))
+                        return ~ self.Convert(exp.left)
+                    elif exp.op == '+':
                         return self.Convert(exp.left)
                     elif exp.op == '-':
                         return -self.Convert(exp.left)
                     elif exp.op == 'O':
-                        self.z3Regs["OF"] = If(self.Overflow(self.Convert(exp.left), 1, 0))
+                        self.z3Regs["OF"] = If(self.Overflow(exp.left), 1, 0)
                         return self.z3Regs["OF"]
                     elif exp.op == 'Z':
                         self.z3Regs["ZF"] = If(self.Convert(exp.left) == 0, 1, 0)
@@ -115,7 +162,7 @@ class ROPChain:
                         self.z3Regs["AF"] = If(self.Adjust(self.Convert(exp.left)), 1, 0)
                         return self.z3Regs["AF"]
                     else:
-                        # TODO & and *
+                        # TODO for & and *, won't goto this branch in any case
                         pass
                 return self.Convert(exp.left) 
 
@@ -131,22 +178,29 @@ class ROPChain:
         else:
             left = self.Convert(exp.left)
             right = self.Convert(exp.right)
-            if not is_bv(left):
-                left = BitVecVal(exp.size)
-            if not is_bv(right):
-                right = BitVecVal(exp.size)
+
+            if is_int(left):
+                left = BitVecRef(Z3_mk_int2bv(left.ctx_ref(), right.size(), left.as_ast()), left.ctx)
+            elif isinstance(left, int):
+                left = BitVecVal(left, exp.length) 
+
+            if is_int(right):
+                right = BitVecRef(Z3_mk_int2bv(right.ctx_ref(), left.size(), right.as_ast()), right.ctx)
+            elif isinstance(right, int):
+                right = BitVecVal(right, exp.length)
+
             if is_bv(right) and right.size() == 1:
                 # bin exp, e.g. op1 + op2 + CF
                 if self.op == '+':
-                    return Or((self.Overflow(exp.left), And(Extract(exp.size-1, exp.size-1, left) == Extract(exp.size-1, exp.size-1, right), Extract(exp.size-1, exp.size-1, left + right) != Extract(exp.size-1, exp.size-1, left))))
+                    return Or((self.Overflow(exp.left), And(Extract(exp.length-1, exp.length-1, left) == Extract(exp.length-1, exp.length-1, right), Extract(exp.length-1, exp.length-1, left + right) != Extract(exp.length-1, exp.length-1, left))))
                 if self.op == '-':
-                    return Or((self.Overflow(exp.left), And(Extract(exp.size-1, exp.size-1, left) == Extract(exp.size-1, exp.size-1, right), Extract(exp.size-1, exp.size-1, left - right) != Extract(exp.size-1, exp.size-1, left))))
+                    return Or((self.Overflow(exp.left), And(Extract(exp.length-1, exp.length-1, left) == Extract(exp.length-1, exp.length-1, right), Extract(exp.length-1, exp.length-1, left - right) != Extract(exp.length-1, exp.length-1, left))))
             else:
                 # bin exp, e.g. op1 + op2
                 if exp.op == '+':
-                    return And(Extract(exp.size-1, exp.size-1, left) == Extract(exp.size-1, exp.size-1, right), Extract(exp.size-1, exp.size-1, left + right) != Extract(exp.size-1, exp.size-1, left))
+                    return And(Extract(exp.length-1, exp.length-1, left) == Extract(exp.length-1, exp.length-1, right), Extract(exp.length-1, exp.length-1, left + right) != Extract(exp.length-1, exp.length-1, left))
                 elif exp.op == '-':
-                    return And(Extract(exp.size-1, exp.size-1, left) != Extract(exp.size-1, exp.size-1, right), Extract(exp.size-1, exp.size-1, left - right) != Extract(exp.size-1, exp.size-1, left))
+                    return And(Extract(exp.length-1, exp.length-1, left) != Extract(exp.length-1, exp.length-1, right), Extract(exp.length-1, exp.length-1, left - right) != Extract(exp.length-1, exp.length-1, left))
 
     def Carry(self, exp):
         if exp.right is None:
@@ -155,10 +209,16 @@ class ROPChain:
         else:
             left = self.Convert(exp.left)
             right = self.Convert(exp.right)
-            if not is_bv(left):
-                left = BitVecVal(left, exp.size)
-            if not is_bv(right):
-                right = BitVecVal(right, exp.size)
+            size = exp.length
+            if is_int(left):
+                left = BitVecRef(Z3_mk_int2bv(left.ctx_ref(), size, left.as_ast()), left.ctx)
+            elif isinstance(left, int):
+                left = BitVecVal(left, size) 
+
+            if is_int(right):
+                right = BitVecRef(Z3_mk_int2bv(right.ctx_ref(), size, right.as_ast()), right.ctx)
+            elif isinstance(right, int):
+                right = BitVecVal(right, size)
             if is_bv(right) and right.size() == 1:
                 # bin exp, e.g. op1 + op2 + CF
                 if exp.op == '+':
@@ -168,9 +228,9 @@ class ROPChain:
             else:
                 # bin exp, e.g. op1 + op2
                 if exp.op == '+':
-                    return (Extract(exp.size - 1, exp.size - 1, left + right) == 1)
+                    return (Extract(exp.length - 1, exp.length- 1, left + right) == 1)
                 elif exp.op == '-':
-                    return (Extract(exp.size - 1, exp.size - 1, left - right) == 1)
+                    return (Extract(exp.length - 1, exp.length- 1, left - right) == 1)
 
     def Parity(self, reg):
         count = 0    
@@ -180,15 +240,17 @@ class ROPChain:
         return count
 
     # check whether a set of regs is sat to the targets
-    # FIXME: if the regs is something in stack, need to check it donesn't conflict with ret addr
     def CheckRegsSat(self, regs, targets, semantic):
         for k in targets.keys():
             if k not in regs.keys():
                 return False
+            #print regs[k] , " == ", targets[k]
             if targets[k].getCategory() == 0:
-                if regs[k].getCategory() == 3 and regs[k].isControl():
-                    continue
-                if str(simplify( self.Convert(targets[k]) == self.Convert(regs[k]))) == "True":
+                if regs[k].getCategory() == 3:
+                    if regs[k].isControl():
+                        # FIXME: should record this mem in case of conflicts
+                        continue
+                elif is_true(self.Compare(regs[k], targets[k])):
                     continue
                 return False
             elif regs[k].getCategory() == 3:
@@ -198,7 +260,7 @@ class ROPChain:
                 for s in temp:
                     if s not in regs[k].getRegs():
                         return False
-                if str(simplify(self.Convert(targets[k]) == self.Convert(regs[k]))) != "True":
+                if not is_true(self.Compare(regs[k], targets[k])):
                     return False
         return True
         '''
@@ -229,44 +291,24 @@ class ROPChain:
                 val = Exp.parseExp(tokens)
                 if not isinstance(val, Exp):
                     val = Exp(val)
+                val.length = Exp.defaultLength
                 regs.update({reg:val})
             self.Start(regs)
 
     def Start(self, regs):
-        reserve = set()
-        chained = set([None])
         # TODO, sort the regs order first
-        for reg, val in regs.items():
-            temp = set()
-            for semantic in chained:
-                prev = None
-                if semantic is not None:
-                    prev = semantic.regs
-                if semantic is not None and reg in semantic.regs.keys() and self.CheckRegsSat({reg:semantic.regs[reg]}, {reg:val}, semantic):
-                    temp.add(semantic)
-                    continue
-                nex = self.Chain(reserve, reg, val, [reg], val.getCategory(), prev, None, 0)
-                if len(nex) == 0:
-                    nex.update(self.Chain(reserve, reg, val, [reg], 6, prev, None, 0))
-                for s in nex:
-                    c = deepcopy(s)
-                    c.chain(semantic)
-                    temp.add(c)
-            reserve.add(reg)
-            chained = deepcopy(temp)
-        final = []
-        for t in chained:
-            if self.CheckRegsSat(t.regs, regs, t):
-                final.append(t)
-
-        if len(chained) <= 1:
-            print  len(final), "unique gadget found"
+        self.chained = set()
+        for i in range(math.factorial(len(regs))):
+            if self.Chain([], None, None, [], 6, None, None, 0, regs):
+                break
+        if len(self.chained) <= 1:
+            print  len(self.chained), "unique gadget found"
         else:
-            print  len(final), "unique gadgets found"
-        for s in final:
+            print  len(self.chained), "unique gadgets found"
+        for s in self.chained:
             print s
 
-        return final 
+        return self.chained
 
     def Overlap(self, reserve, regs):
         for reg in regs.keys():
@@ -274,13 +316,24 @@ class ROPChain:
                 return True
         return False
 
-    def Chain(self, reserve, reg, val, targets, cat, prev, nex, deepth):
-        chained = set()
-        print "searching for ", reg, " ==> ", val , " throught ", targets, " category ", cat, " deepth ", deepth, " limit ", self.deepth
-        print "based on ", nex
-        if len(targets) == 0 or deepth > self.deepth:
-            return chained
+    def Chain(self, reserve, reg, val, targets, cat, prev, nex, deepth, constraints):
+        if deepth > self.deepth:
+            return False 
+        if reg is None and val is None:
+            if len(constraints) == 0:
+                print "all done"
+                print prev
+                if prev is not None:
+                    self.chained.add(prev)
+                return len(self.chained) >= self.default
+            k = random.choice(constraints.keys())
+            v = constraints.pop(k)
+            print "Now looking for gadget with ", k , " == ", v
+            res = self.Chain(reserve, k, v, [k], 6, prev, None, deepth, constraints)
+            constraints.update({k:v})
+            return res
         target = targets.pop(0)
+        print "searching for ", reg, " ==> ", val , " throught ", target, " category ", cat, " deepth ", deepth, " limit ", self.deepth
         if len(targets) != 0:
             # DFS, only works for regs + regs
             if target in self.categories.keys()  and 2 in self.categories[target].keys():
@@ -292,29 +345,55 @@ class ROPChain:
                         c = deepcopy(nex)
                         c.chain(semantic)
                     else:
-                        c = semantic
-                    c.binding(prev)
+                        c = deepcopy(semantic)
+                    c.chain(prev)
                     temp = targets.pop(0)
-                    reserve.add(temp)
-                    chained.update(self.Chain(reserve, reg, val, targets, cat, prev, c, deepth+1))
-                    reserve.remove(temp)
+                    reserve.append(temp)
+                    if self.Chain(reserve, reg, val, targets, cat, prev, c, deepth+1, constraints):
+                        return True
+                    reserve.pop()
                     targets.insert(0, temp)
-            return chained
+            return False
 
-        # checks for gadget that modify mem, or checks for gadgets to control this mem location
+        # checks for gadget that modify mem
         if cat == -1:
-            for semantic in self.mems:
-                if self.Overlap(reserve, semantic.regs):
-                    continue
-                c = deepcopy(nex)
-                c.chain(semantic)
-                c.binding(prev)
-                if target in semantic.regs.keys():
+            if isinstance(target, list):
+                #TODO, for multi regs
+                pass
+            else:
+                for semantic in self.mems:
+                    if self.Overlap(reserve, semantic.regs):
+                        continue
+                    c = deepcopy(nex)
+                    c.chain(semantic)
+                    c.chain(prev)
+                    if target in semantic.regs.keys():
+                        if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
+                            c.regs[reg] = val
+                            reserve.append(reg)
+                            if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
+                                return True
+                            reserve.pop()
+        # checks constant based
+        if cat == 6 or cat == 0:
+            if target in self.categories.keys() and 0 in self.categories[target].keys():
+                for semantic in self.categories[target][0]:
+                    if self.Overlap(reserve, semantic.regs):
+                        continue
+                    c = None
+                    if nex is not None:
+                        c = deepcopy(nex)
+                        c.chain(semantic)
+                    else:
+                        c = deepcopy(semantic)
+                    c.chain(prev)
+                    print "checking gadget that set constant", c.regs[target]
                     if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
-                        chained.add(c)
-                    chained.update(self.Chain(reserve, reg, val, c.regs[reg].getRegs(), 6, prev, c, deepth+1))
-            chained.update(self.ChainRetGadget(c.regs[reg], prev, nex, deepth+1))
-            return chained
+                        c.regs[reg] = val
+                        reserve.append(reg)
+                        if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
+                            return True
+                        reserve.pop()
 
         # checks mem location 
         if cat == 6 or cat == 3:
@@ -327,30 +406,25 @@ class ROPChain:
                         c = deepcopy(nex)
                         c.chain(semantic)
                     else:
-                        c = semantic
-                    c.binding(prev)
-                    print "checking ", c.regs[reg], " == ", val
+                        c = deepcopy(semantic)
+                    c.chain(prev)
                     if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
-                        chained.add(c)
+                        c.regs[reg] = val
+                        reserve.append(reg)
+                        if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
+                            return True
+                        reserve.pop()
                     else:
-                        chained.update(self.Chain(reserve, reg, val,[str(c.regs[reg])], -1, prev, c, deepth+1))
-
-        # checks constant based
-        if cat == 6 or cat == 0:
-            if target in self.categories.keys() and 0 in self.categories[target].keys():
-                for semantic in self.categories[target][0]:
-                    if self.Overlap(reserve, semantic.regs):
-                        continue
-                    c = None
-                    if nex is not None:
-                        c = deepcopy(nex)
-                        c.chain(semantic)
-                    else:
-                        c = semantic
-                    c.binding(prev)
-                    print "checking ", c.regs[reg], " == ", val
-                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
-                        chained.add(c)
+                        # either we control the addr of this mem location or we control the value of this mem location
+                        print "checking gadget that set mem ", c.regs[target]
+                        if len(c.regs[reg].getRegs()) != 0:
+                            r = self.ChainRetGadget(reserve, c.regs[target], prev, c, deepth+1)
+                            if r is not None:
+                                if self.CheckRegsSat({reg:r.regs[reg]}, {reg:val}, r):
+                                    if self.Chain(reserve, None, None, None, 0,  r, None, deepth+1, constraints):
+                                        return True
+                        elif self.Chain(reserve, reg, val,[str(c.regs[reg])], -1, prev, c, deepth+1, constraints):
+                            return True
 
         # checks reg based
         if cat == 6 or cat == 1:
@@ -363,13 +437,18 @@ class ROPChain:
                         c = deepcopy(nex)
                         c.chain(semantic)
                     else:
-                        c = semantic
-                    c.binding(prev)
-                    print "checking ", c.regs[reg], " == ", val
+                        c = deepcopy(semantic)
+                    c.chain(prev)
+                    print "checking gadget that set to another reg", c.regs[target]
                     if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
-                        chained.add(c)
+                        c.regs[reg] = val
+                        reserve.append(reg)
+                        if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
+                            return True
+                        reserve.pop()
                     else:
-                        chained.update(self.Chain(reserve, reg, val, semantic.regs[target].getRegs(), cat, prev, c, deepth+1))
+                        if self.Chain(reserve, reg, val, semantic.regs[target].getRegs(), cat, prev, c, deepth+1, constraints):
+                            return True
 
         # checks regs based if needed
         if cat == 6 or cat == 2:
@@ -380,13 +459,18 @@ class ROPChain:
                         c = deepcopy(nex)
                         c.chain(semantic)
                     else:
-                        c = semantic
-                    c.binding(prev)
-                    print "checking ", c.regs[reg], " == ", val
+                        c = deepcopy(semantic)
+                    c.chain(prev)
+                    print "checking gadget that set to regs", c.regs[target]
                     if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
-                        chained.add(c)
+                        c.regs[reg] = val
+                        reserve.append(reg)
+                        if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
+                            return True
+                        reserve.pop()
                     else:
-                        chained.update(self.Chain(reserve, reg, val, semantic.regs[reg].getRegs(), cat, prev, c, deepth+1))
+                        if self.Chain(reserve, reg, val, semantic.regs[target].getRegs(), cat, prev, c, deepth+1, constraints):
+                            return True
 
         # checks condition based if needed
         if cat == 6 or cat == 5:
@@ -397,17 +481,21 @@ class ROPChain:
                         c = deepcopy(nex)
                         c.chain(semantic)
                     else:
-                        c = semantic
-                    c.binding(prev)
-                    print "checking ", c.regs[reg], " == ", val
+                        c = deepcopy(semantic)
+                    c.chain(prev)
+                    print "checking gadget that set based on condition", c.regs[target]
                     if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
-                        chained.add(c)
+                        c.regs[reg] = val
+                        reserve.append(reg)
+                        if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
+                            return True
+                        reserve.pop()
                     else:
-                        chained.update(self.Chain(reserve, reg, val, semantic.regs[reg].getCondition().getRegs(), cat, prev, c, deepth+1))
-
+                        if self.Chain(reserve, reg, val, semantic.regs[target].getCondition().getRegs(), cat, prev, c, deepth+1):
+                            return True
         # TODO checks Mem + Regs
         targets.insert(0, target)
-        return chained
+        return False
 
     def AddToCat(self, reg, val, semantic):
         if reg not in self.categories.keys():
@@ -416,12 +504,10 @@ class ROPChain:
             self.categories[reg].update({val.getCategory():[]})
         self.categories[reg][val.getCategory()].append(semantic)
 
-    def ChainRetGadget(self, sip, prev, nex, deepth):
-        # sip must be a mem location
-        print "chaing esp val", nex
-        fixed = set()
+    def ChainRetGadget(self, reserve, sip, prev, nex, deepth):
+        # sip must be a mem location, make sure this mem determined only by esp
         if deepth > self.deepth:
-            return fixed
+            return None
         if not isinstance(sip.left, Exp) or sip.left.getCategory() == 1:
             # the location is only determined by one reg 
             reg = str(sip.left)
@@ -433,7 +519,7 @@ class ROPChain:
                         c = deepcopy(nex)
                         c.chain(semantic)
                         c.binding(prev)
-                        fixed.add(c)
+                        return c
                         # TODO, we can return after find one perfect ret gadget
             if reg in self.categories.keys() and 3 in self.categories[reg].keys():
                 for semantic in self.categories[reg][3]:
@@ -441,7 +527,7 @@ class ROPChain:
                         c = deepcopy(nex)
                         c.chain(semantic)
                         c.binding(prev)
-                        fixed.add(c)
+                        return c
 
         elif sip.left.getCategory() == 2:
             regs = sip.left.getRegs()
@@ -453,51 +539,48 @@ class ROPChain:
             if sip.left.isControl():
                 # if mem location is from esp
                 nex.binding(prev)
-                fixed.add(nex)
+                return nex
             else:
                 # otherwise, chain another mem location gadget
-                temp = self.ChainRetGadget(sip.left.left, prev, nex, deepth+1)
-                for jop in temp:
-                    fixed.add(jop)
-        return fixed 
+                return self.ChainRetGadget(reserve, sip.left.left, prev, nex, deepth+1)
+        return None 
 
-    def ChainCondGadget(self, targets, nex):
-        fixed = set()
+    def ChainCondGadget(self, targets, nex, deepth):
+        if deepth > self.deepth:
+            return None
         reg = targets.pop(0)
         if len(targets) == 0:
             if reg in self.categories.keys() and 0 in self.categories[reg].keys():
                 for semantic in self.categories[reg][0]:
                     c = deepcopy(nex)
                     c.chain(semantic)
-                    print c
-                    print c.regs["sip"]
-                    if c.regs["sip"].getCondition().isControl() or self.Convert(c.regs["sip"].getCondition()) or simplify(self.Convert(c.regs["sip"].getCondition())) == "True":
+                    if ((c.regs["sip"].getCondition().getCategory() < 3 and is_true(self.Compare(c.regs["sip"].getCondition())))
+                            or c.regs["sip"].getCondition().isControl()):
                         c.regs.update({"sip":c.regs["sip"].meetCondition()})
-                        fixed.add(c)
+                        return c 
 
             if reg in self.categories.keys() and 1 in self.categories[reg].keys():
                 for semantic in self.categories[reg][1]:
                     c = deepcopy(nex)
                     c.chain(semantic)
-                    print c
-                    print c.regs["sip"]
-                    if c.regs["sip"].getCondition().isControl() or self.Convert(c.regs["sip"].getCondition()) or simplify(self.Convert(c.regs["sip"].getCondition())) == "True":
+                    if ((c.regs["sip"].getCondition().getCategory() < 3 and is_true(self.Compare(c.regs["sip"].getCondition())))
+                            or c.regs["sip"].getCondition().isControl()):
                         c.regs.update({"sip":c.regs["sip"].meetCondition()})
-                        fixed.add(c)
+                        return c 
         else:
             if reg in self.categories.keys() and 0 in self.categories[reg].keys():
                 for semantic in self.categories[reg][0]:
                     c = deepcopy(nex)
                     c.chain(semantic)
-                    fixed.update(self.ChainCondGadget(targets, c))
+                    return (self.ChainCondGadget(targets, c, deepth+1))
 
             if reg in self.categories.keys() and 1 in self.categories[reg].keys():
                 for semantic in self.categories[reg][1]:
                     c = deepcopy(nex)
                     c.chain(semantic)
-                    fixed.update(self.ChainCondGadget(targets, c))
+                    return (self.ChainCondGadget(targets, c, deepth+1))
         targets.append(reg)
-        return fixed
+        return None 
 
     def Category(self):
         cond = []
@@ -505,9 +588,8 @@ class ROPChain:
         for semantic in self.semantics:
             if semantic.regs["sip"].isControl():
                 # return address is somewhere in esp
-                print semantic
                 for reg, val in semantic.regs.items():
-                    if not reg in self.z3Regs:
+                    if reg != "sip" and reg != "ssp" and reg not in self.z3Regs:
                         self.mems.append(semantic)
                         continue
                     self.AddToCat(reg, val, semantic)
@@ -520,19 +602,26 @@ class ROPChain:
         print "gadgets with destination not specified ", len(rets)
         print "gadgets can be directly used", len(self.semantics) - len(rets)
         for semantic in cond:
-            # fix cond 
-            rets.extend(self.ChainCondGadget(semantic.regs["sip"].getCondition().getRegs(), semantic))
-        
+            # fix gadget with condition here
+            # if the mem location can't be control, abandon this
+            if len(semantic.regs["sip"].meetCondition().getRegs()) == 0:
+                continue
+            arr = self.ChainCondGadget(semantic.regs["sip"].getCondition().getRegs(), semantic, 0)
+            if arr is not None:
+                print "for cond gadget fixed", arr.getAddress()
+                rets.append(arr)
+        print "extend cond gadgets done"
         for semantic in rets:
             fixed = [semantic]
             if not semantic.regs["sip"].isControl():
-                fixed = self.ChainRetGadget(semantic.regs["sip"], None, semantic, 0)
-            for jop in fixed:
+                jop = self.ChainRetGadget([], semantic.regs["sip"], None, semantic, 0)
+            if jop is not None:
                 for reg, val in jop.regs.items():
                     if not reg in self.z3Regs:
                         self.mems.append(jop)
                         continue
                     self.AddToCat(reg, val, jop)
+        print "extend ret gadgets done"
 
         # prechain
         if self.optimized:
@@ -564,5 +653,5 @@ class ROPChain:
             for k in self.categories[reg]:
                 print reg, "\t======>\t", k , " with ", len(self.categories[reg][k])
                 for s in self.categories[reg][k]:
-                    print s
-
+                    pass
+                    #print s

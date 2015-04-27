@@ -16,6 +16,26 @@ class BinaryStub():
         return CS_MODE_32
 
 class ExpTestCase(unittest.TestCase):
+    def testGetCat(self):
+        print "Test Exp binding...................................."
+        assert Exp("1").getCategory() == 0
+        assert Exp("eax").getCategory() == 1
+        assert Exp(Exp("eax"), "+", Exp("ebx")).getCategory() == 2
+        assert Exp(Exp("1"),"*").getCategory() == 3
+        assert Exp(Exp(Exp("eax"),"*"), "+", Exp("ebx")).getCategory() == 4
+        assert Exp("1","condition", Exp("eax"), Exp("ebx")).getCategory() == 5
+        operand1 = Exp.parseOperand("byte ptr [0x15]", {}, {})
+        assert operand1.getCategory() == 3
+        operands = {}
+        operands.update({"operand1":operand1})
+        exp = Exp.parse("operand1 = operand1 ^ operand1", operands)
+        for key, val in exp.items():
+            print key, val.getCategory()
+            assert val.getCategory() == 3 and key == "operand1"
+
+        operand1 = Exp.parseOperand("al", {"eax":Exp("eax")}, {"al":["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8]})
+        assert operand1.getCategory() == 1
+
     def testExpBinding(self):
         print "Test Exp binding...................................."
         exp = Exp("eax")
@@ -111,7 +131,22 @@ class ExpTestCase(unittest.TestCase):
                 v = v.binding({"al":val})
                 assert v.length == 32 and str(v) == "( ( 1 $ 8 : 31 ) # ( ( 1 $ 0 : 7 ) + 1 ) )"
 
-class ParserX86TestCase(unittest.TestCase):
+class ParserX86TestCase1(unittest.TestCase):
+    def setUp(self):
+        gadget1 = [{"mnemonic":"adc", "op_str":"al, 0x41", "vaddr":1} , {"mnemonic":"xor", "op_str":"eax, eax", "vaddr":1}, {"mnemonic":"adc", "op_str":"al, -2", "vaddr":1}, {"mnemonic":"jbe", "op_str":"0x123123", "vaddr":1}]
+        gadget2 = [{"mnemonic":"cmove", "op_str":"ebx, eax", "vaddr":3}]
+        gadget3 = [{"mnemonic":"add", "op_str":"eax, ebx", "vaddr":3},  {"mnemonic":"ret", "op_str":"", "vaddr":3}]
+        gadget4 = [{"mnemonic":"adc", "op_str":"al, 0x41", "vaddr":1} ]#, {"mnemonic":"xor", "op_str":"eax, eax", "vaddr":1}, {"mnemonic":"adc", "op_str":"al, -2", "vaddr":1}, {"mnemonic":"jbe", "op_str":"0x123123", "vaddr":1}]
+        gadget5 = [{"mnemonic":"mov", "op_str":"eax, 0x123123", "vaddr":5}, {"mnemonic":"ret", "op_str":"4", "vaddr":5}]
+        gadget6 = [{"mnemonic":"cmp", "op_str":"eax, 2", "vaddr":5}, {"mnemonic":"jle", "op_str":"0x123123", "vaddr":5}]
+        #gadget7 = [{"mnemonic":"add", "op_str":"byte ptr [eax], al", "vaddr":6}, {"mnemonic":"ja", "op_str":"0x123123", "vaddr":5}]
+        gadget7 = [{"mnemonic":"ja", "op_str":"0x123123", "vaddr":5}]
+        gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5, gadget6, gadget7]
+        self.parser = ROPParserX86(gadgets, BinaryStub().getArchMode()) 
+        self.formula = self.parser.parse()
+        self.rop = ROPChain(BinaryStub(), [], False, 2)
+
+class ParserX86TestCase2(unittest.TestCase):
     def setUp(self):
         gadget1 = [{"mnemonic":"mov", "op_str":"eax, 1", "vaddr":1}]
         gadget2 = [{"mnemonic":"cmove", "op_str":"ebx, eax", "vaddr":3}]
@@ -165,39 +200,36 @@ class ParserX86TestCase(unittest.TestCase):
         assert len(self.formula[20].regs) == 2 and str(self.formula[20].regs["ssp"]) == "( ( ssp - 4 ) - 4 )" and str(self.formula[20].regs["eax"]) == "[ ( ssp - 4 ) ]"
         assert len(self.formula[21].regs) == 3 and str(self.formula[21].regs["ssp"]) == "( ( ssp + 4 ) + 4 )" and str(self.formula[21].regs["[ ssp ]"]) == "eax" and str(self.formula[21].regs["[ ( ssp + 4 ) ]"]) == "eax"
         assert set(self.formula[22].regs) == set(['PF', 'CF', 'AF', 'OF', 'ZF', 'ssp', 'SF']) and str(self.formula[22].regs["ssp"]) == "( ssp + 4 )" 
-
 class ROPChainTestCase1(unittest.TestCase):
     def setUp(self):
         gadget1 = [{"mnemonic":"mov", "op_str":"eax, 1", "vaddr":1}, {"mnemonic":"ret", "op_str": "", "vaddr": "1"}]
         gadget2 = [{"mnemonic":"pop", "op_str":"eax", "vaddr":2},    {"mnemonic":"ret", "op_str": "", "vaddr": "2"}]
         gadget3 = [{"mnemonic":"mov", "op_str":"ebx, eax", "vaddr":3}, {"mnemonic":"ret", "op_str": "", "vaddr": "3"}]
-
         gadget4 = [{"mnemonic":"mov", "op_str":"edx, esp", "vaddr":4}, {"mnemonic":"add", "op_str":"esp, 4", "vaddr":"4"}, {"mnemonic":"ret", "op_str": "", "vaddr": "4"}]
         gadget5 = [{"mnemonic":"mov", "op_str":"ecx, byte ptr [edx]", "vaddr":5}, {"mnemonic":"ret", "op_str": "", "vaddr": "5"}]
 
-
         gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5]
-        self.rop = ROPChain(BinaryStub(), gadgets, False, 4)
+        self.rop = ROPChain(BinaryStub(), gadgets, False, 2)
 
     def testMultiConds(self):
         print "Testing with multi regs..............................."
-        res = list(self.rop.Start({"eax": Exp(1), "ebx": Exp(1)}))
-        assert len(res) == 1 and len(res[0].gadgets) == 2 and res[0].getAddress() == [1, 3]
-        # FIXME: need to sort the multi regs first, for now it is empty
-        res = list(self.rop.Start({"ebx":Exp("eax"), "eax": Exp(1)}))
-        assert len(res) == 0
+        res = list(self.rop.Start({"eax": Exp.ExpL(32, 1), "ebx": Exp.ExpL(32, 1)}))
+        for r in res:
+            assert r.getAddress() == [2, 3] or r.getAddress() == [1, 3]
 
+        self.rop.deepth = 4
+        res = list(self.rop.Start({"eax": Exp.ExpL(32, 10), "ebx": Exp.ExpL(32, 1)}))
+        for r in res:
+            print r
+            assert r.getAddress() == [1, 3, 2] or r.getAddress() == [2, 3, 2]
 
 
     def testOneCond(self):
         print "Testing with one reg..............................."
-        res = list(self.rop.Start({"eax": Exp(1)}))
-        assert len(res) == 1 and len(res[0].gadgets) == 1 and res[0].getAddress() == [1]
-
-        res = list(self.rop.Start({"eax": Exp(21213)}))
+        res = list(self.rop.Start({"eax": Exp.ExpL(32, 21213)}))
         assert len(res) == 1 and len(res[0].gadgets) == 1 and res[0].getAddress() == [2]
 
-        res = list(self.rop.Start({"eax": Exp(-21213)}))
+        res = list(self.rop.Start({"eax": Exp.ExpL(32, -21213)}))
         assert len(res) == 1 and len(res[0].gadgets) == 1 and res[0].getAddress() == [2]
 
         res = list(self.rop.Start({"ebx": Exp("eax")}))
@@ -213,18 +245,19 @@ class ROPChainTestCase1(unittest.TestCase):
         # res = list(self.rop.Start({"ecx": Exp("ecx", "+", "1")}))
         # assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [4, 5] 
 
-        res = list(self.rop.Start({"ebx": Exp("1111")}))
+        res = list(self.rop.Start({"ebx": Exp.ExpL(32, "1111")}))
         print res
         assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [2, 3] 
 
-        res = list(self.rop.Start({"edx": Exp("1111")}))
+        res = list(self.rop.Start({"edx": Exp.ExpL(32, "1111")}))
         assert len(res) == 0
 
-        res = list(self.rop.Start({"ecx": Exp("1111")}))
-        assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [4, 5] 
+        res = list(self.rop.Start({"ebx": Exp.ExpL(32, "1")}))
+        for r in res:
+            assert r.getAddress() == [2, 3] or r.getAddress() == [1, 3]
 
-        res = list(self.rop.Start({"ebx": Exp("1")}))
-        assert len(res) == 2 and len(res[0].gadgets) == 2 and len(res[1].gadgets) == 2 and ( (res[0].getAddress() == [1, 3] and res[1].getAddress() == [2, 3])  or ( res[1].getAddress() == [1, 3] and res[2].getAddress() == [2, 3]) )
+        res = list(self.rop.Start({"ecx": Exp.ExpL(32, "1111")}))
+        assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [4, 5] 
 
 class ROPChainTestCase2(unittest.TestCase):
 
@@ -265,20 +298,17 @@ class ROPChainTestCase4(unittest.TestCase):
         gadget3 = [{"mnemonic":"mov", "op_str":"eax, 0", "vaddr":3},  {"mnemonic":"ret", "op_str":"", "vaddr":3}]
 
         gadgets = [gadget1, gadget2, gadget3]
-        self.rop = ROPChain(BinaryStub(), gadgets, False, 1)
+        self.rop = ROPChain(BinaryStub(), gadgets, False, 2)
 
     def testSubRegs(self):
         print "Testing sub regs gadgets..........................................."
-        exp = Exp(1)
-        exp.length = 32
-        res = list(self.rop.Start({"eax": exp}))
+        res = list(self.rop.Start({"eax": Exp.ExpL(32, 1)}))
         assert len(res) == 1 and res[0].getAddress() == [3, 1]
 
-        self.rop.deepth = 2
-        exp = Exp(257)
-        exp.length = 32
-        res = list(self.rop.Start({"eax": exp}))
-        assert len(res) == 2 and ( (res[0].getAddress() == [3, 1, 2] and res[1].getAddress() == [3, 2, 1]) or (res[0].getAddress() == [3, 2, 1] and res[1].getAddress() == [3, 1, 2]))
+        self.rop.deepth = 3
+        res = list(self.rop.Start({"eax": Exp.ExpL(32, 257)}))
+        for r in res:
+            assert (r.getAddress() == [3, 1, 2] or r.getAddress() == [3, 2, 1]) 
 
 class ROPChainTestCase5(unittest.TestCase):
     def setUp(self):
@@ -292,8 +322,5 @@ class ROPChainTestCase5(unittest.TestCase):
 
     def testComplexMem(self):
         print "Testing complex mem location for reg sat..........................................."
-
-
-
 if __name__ == "__main__":
     unittest.main()

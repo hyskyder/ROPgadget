@@ -54,14 +54,14 @@ class X86:
 	    "mov": [2, ["operand1 = operand2"], []],
 	    "cmove": [2, ["operand1 = ( ZF == 1 ) ? operand2 : operand1"], []],
 	    "cmovne": [2, ["operand1 = ( ZF == 0 ) ? operand2 : operand1"], []],
-	    "cmova": [2, ["operand1 = ( ZF == 0 & CF == 0 ) ? operand2 : operand1"], []],
+	    "cmova": [2, ["operand1 = ( ( ZF == 0 ) & ( CF == 0 ) ) ? operand2 : operand1"], []],
 	    "cmovae": [2, ["operand1 = ( CF == 0 ) ? operand2 : operand1"], []],
 	    "cmovb": [2, ["operand1 = ( CF == 1 ) ? operand2 : operand1"], []],
-	    "cmovbe": [2, ["operand1 = ( ZF == 1 | CF == 1 ) ? operand2 : operand1"], []],
-        "cmovg": [2, ["operand1 = ( ZF == 0 & SF == OF ) ? operand2 : operand1 "], []],
+	    "cmovbe": [2, ["operand1 = ( ( ZF == 1 ) | ( CF == 1 ) ) ? operand2 : operand1"], []],
+        "cmovg": [2, ["operand1 = ( ( ZF == 0 ) & ( SF == OF ) ) ? operand2 : operand1"], []],
 	    "cmovge": [2, ["operand1 = ( SF == OF ) ? operand2 : operand1"], []],
 	    "cmovl": [2, ["operand1 = ( SF != OF ) ? operand2 : operand1"], []],
-	    "cmovle": [2, ["operand1 = ( ZF == 1 & SF != OF ) ? operand2 : operand1"], []],
+	    "cmovle": [2, ["operand1 = ( ( ZF == 1 ) & ( SF != OF ) ) ? operand2 : operand1"], []],
 	    "cmovs": [2, ["operand1 = ( SF == 1 ) ? operand2 : operand1"], []],
 	    "cmovp": [2, ["operand1 = ( PF == 1 ) ? operand2 : operand1"], []],
 
@@ -99,20 +99,20 @@ class X86:
         "call": [1, [], ["* operand1"]],
 
 	    "jmp": [1, [], ["* operand1"]],
-	    "ja": [1, [], ["CF == 0 & ZF == 0 ? * operand1 : 0"]],
+	    "ja": [1, [], ["( ( CF == 0 ) & ( ZF == 0 ) ) ? * operand1 : 0"]],
 	    "jae": [1, [], ["CF == 0 ? * operand1 : 0"]],
 	    "jb": [1, [] , ["CF == 1 ? * operand1 : 0"]],
-	    "jbe": [1, [] , ["CF == 1 | ZF == 1 ? * operand1 : 0"]],
+	    "jbe": [1, [] , ["( ( CF == 1 ) | ( ZF == 1 ) ) ? * operand1 : 0"]],
 	    "jc": [1, [], ["CF == 1 ? * operand1 : 0"]],
 	    "je": [1, [], ["ZF == 1 ? * operand1 : 0"]],
 	    "jnc": [1, [], ["CF == 0 ? * operand1 : 0"]],
 	    "jne": [1, [], ["ZF == 0 ? * operand1 : 0"]],
 	    "jnp": [1, [], ["PF == 0 ? * operand1 : 0"]],
 	    "jp": [1, [], ["PF == 1 ? * operand1 : 0"]],
-	    "jg": [1, [], ["ZF == 0 & SF == OF ? * operand1 : 0"]],
+	    "jg": [1, [], ["( ( ZF == 0 ) & ( SF == OF ) ) ? * operand1 : 0"]],
 	    "jge": [1, [], ["SF == OF ? * operand1 : 0"]],
 	    "jl": [1, [], ["SF != OF ? * operand1 : 0"]],
-	    "jle": [1, [], ["ZF == 1 | SF != OF ? * operand1 : 0"]],
+	    "jle": [1, [], ["( ( ZF == 1 ) | ( SF != OF ) ) ? * operand1 : 0"]],
 	    "jno": [1, [], ["OF == 0 ? * operand1 : 0"]],
 	    "jns": [1, [], ["SF == 0 ? * operand1 : 0"]],
 	    "jo": [1, [], ["OF == 1 ? * operand1 : 0"]],
@@ -273,6 +273,7 @@ class ROPParserX86:
                 for reg, val in exps.items():
                     if reg == "temp":
                         # temp variable, no need to assign
+                        val.length = max(operand1.length, operand2.length)
                         continue
                     if "*" in reg:
                         # this can only be push inst
@@ -294,6 +295,7 @@ class ROPParserX86:
                             regs.update({k:v})
                     else:
                         # mem
+                        val.length = Exp.defaultLength
                         regs.update({str(reg):val})
                 if prefix == "push":
                     regs.update({"ssp":Exp(regs["ssp"], "+", Exp(self.aligned))})

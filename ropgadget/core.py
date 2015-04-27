@@ -87,6 +87,7 @@ class Core(cmd.Cmd):
         print "\nUnique gadgets found: %d" %(len(self.__gadgets))
         if self.__options.ropparse:
             rop = ROPChain(self.__binary, strs, False)
+            rop.Core()
         return True
 
 

@@ -11,12 +11,13 @@ class Semantic:
             self.rets.append(regs["sip"])
         self.regs = regs
         self.deepth = 1
+        self.stack = {}
 
     def binding(self, prev):
         if prev is None:
             return 
         for k, v in self.regs.items():
-            v = v.binding(prev)
+            v = v.binding(prev.regs)
             self.regs.update({k:v})
 
     def chain(self, semantic): 
@@ -62,15 +63,15 @@ class Semantic:
                 temp += inst["mnemonic"] + ", " + inst["op_str"] + "\n"
             string += temp
 
-        #for reg, val in self.regs.items():
-            #string += str(reg) + "\t======>\t" + str(val) + "\n"
+        for reg, val in self.regs.items():
+            string += str(reg) + "\t======>\t" + str(val) + "\n"
         return string
 
     def __eq__(self, other):
         if self.deepth != other.deepth:
             return False
         for i in range(self.deepth):
-            if self.gadgets[i]["vaddr"] != other.gadgets[i]["vaddr"]:
+            if self.gadgets[i][0]["vaddr"] != other.gadgets[i][0]["vaddr"]:
                 return False
         return True
     

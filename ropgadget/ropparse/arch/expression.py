@@ -43,12 +43,24 @@ class Exp:
         
         # default size for constant
         self.length = 0
-        if self.op == '$':
+        if len(str(left)) == 3 and str(left) == "ssp":
+            self.length = Exp.defaultLength
+        elif len(str(left)) == 3 and "r" in str(left):
+            self.length = 64
+        elif len(str(left)) == 3 and "e" in str(left):
+            self.length = 32
+        elif len(str(left)) == 2 and "x" in str(left):
+            self.length = 16
+        elif len(str(left)) == 2 and ( "h" in str(left) or "l" in str(left)):
+            self.length = 8
+        elif len(str(left)) == 2 and "F" in str(left):
+            self.length = 1
+        elif self.op == '$':
             self.length = int(str(right)) - int(str(left)) + 1
-        '''
         elif self.op == '#':
-            print left, right
             self.length = left.length + right.length
+
+        '''
         if isinstance(left, Exp):
             self.size = max(self.size, left.size)
         elif not isinstance(left, str):
@@ -58,6 +70,19 @@ class Exp:
         elif left[0] == 'r':
             self.size = max(self.size, 64)
         '''
+
+    def showLength(self, exp):
+        if not isinstance(exp, Exp):
+            return str(exp)
+        elif exp.condition is not None and exp.op == "condition":
+            return "( " + self.showLength(exp.condition)  + " ? " + self.showLength(exp.left) + " : " + self.showLength(exp.right) + " )-" + str(exp.length)
+        elif exp.condition is not None:
+            return "( " + self.showLength(exp.condition)  + " $ " + self.showLength(exp.left) + " : " + self.showLength(exp.right) + " )-" + str(exp.length)
+        elif exp.right is not None:
+            if exp.op == '*':
+                return "[ " + self.showLength(exp.left) + " ]-" + str(exp.length)
+            return "( " + self.showLength(exp.left) + " " + exp.op + " " + self.showLength(exp.right) + " )-" + str(exp.length)
+        return self.showLength(exp.left) +"-" + str(exp.length)
 
     def __str__(self):
         if self.condition is not None:
@@ -140,6 +165,8 @@ class Exp:
             if left == 1 and right == 1 and self.left.getRegs() != self.right.getRegs():
                 return 2
             return max(left, right)
+        if left == 3 and right == 3:
+            return 3
         return min(4, left + right)
 
     def getRegs(self):
@@ -229,7 +256,7 @@ class Exp:
     
     def meetCondition(self):
         # return new exp with the first condition meet
-        if self.op is not None:
+        if self.condition is not None:
             if self.op == "condition":
                 return self.left
             else:
@@ -298,7 +325,6 @@ class Exp:
                     exp = Exp("ssp")
                 if string in regs.keys():
                     exp = exp.binding(regs)
-                exp.length = Exp.defaultLength
                 return exp
         else:
             # mem
@@ -398,4 +424,8 @@ class Exp:
             exp.length = operands["operand1"].length
         return {reg:exp}
 
-
+    @staticmethod
+    def ExpL(size, left, op=None, right=None, condition=None):
+        exp = Exp(left, op, right, condition)
+        exp.length = size
+        return exp
