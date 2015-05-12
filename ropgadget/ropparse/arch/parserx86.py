@@ -13,8 +13,8 @@ from copy import deepcopy
 class X86:
     FLAG = ["CF", "PF", "AF", "ZF", "SF", "TF", "IF", "DF", "OF"]
     regs64 = ["rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12",
-            "r13", "r14", "r15", "CS", "DS", "ES", "FS", "GS", "SS"]
-    regs32 = ["eax", "ebx", "ecx", "edx", "CS", "DS", "ES", "FS", "GS", "SS", "esi", "edi", "ebp", "esp", "eip"]
+            "r13", "r14", "r15", "cs", "ds", "es", "fs", "gs", "ss"]
+    regs32 = ["eax", "ebx", "ecx", "edx", "cs", "ds", "es", "fs", "gs", "ss", "esi", "edi", "ebp", "esp", "eip"]
     Tregs64 = {
             "eax" : ["rax $ 0 : 31", "rax = ( rax $ 32 : 63 ) # eax", 32],
             "ax" : ["rax $ 0 : 15", "rax = ( rax $ 16 : 63 ) # ax", 16],
@@ -79,6 +79,7 @@ class X86:
 	    "sti": [0, [], ["IF = 1"]],
 	    "cli": [0, [], ["IF = 0"]],
         # arithmetic
+        "xchg": [2, ["FIXME"], []],
         "cmp": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
 	    "add": [2, ["operand1 = operand1 + operand2"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
 	    "adc": [2, ["operand1 = operand1 + operand2 + CF"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
@@ -182,6 +183,7 @@ class X86:
 class ROPParserX86:
     def __init__(self, gadgets, mode):
         self.gadgets = gadgets
+        self.addrs = dict()
         self.mode = mode
         self.aligned = 0
         if mode == CS_MODE_32:
@@ -199,7 +201,7 @@ class ROPParserX86:
         formulas = []
         for gadget in self.gadgets:
             regs = {"ssp": Exp("ssp")}
-            regs = self.parseInst(regs, gadget, 0)
+            regs = self.parseInst(regs, gadget["insns"], 0)
             '''
             string = "========================="
             for inst in gadget:
@@ -208,7 +210,8 @@ class ROPParserX86:
             '''
             if len(regs) == 0:
                 continue
-            formulas.append(Semantic(regs, gadget))
+            formulas.append(Semantic(regs, gadget["vaddr"]))
+            self.addrs.update({hex(gadget["vaddr"]).replace("L",""):gadget["insns"]})
         print "================================="
         print "Unique gadgets parsed ", len(formulas)
         return formulas
@@ -220,7 +223,6 @@ class ROPParserX86:
         # all control transfer dst must bewteen low and high addr
         prefix = insts[i]["mnemonic"]
         op_str = insts[i]["op_str"]
-        addr = insts[i]["vaddr"]
         if prefix not in X86.insn.keys():
             # contains not supported ins
             return {}
@@ -258,6 +260,9 @@ class ROPParserX86:
             operand1 = None
             operand2 = None
             operands = {"ssp":regs["ssp"]}
+            for flag in X86.FLAG:
+                if flag in regs.keys():
+                    operands.update({flag:regs[flag]})
             # handle special cases
             if ins[0] == 1:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
@@ -269,6 +274,41 @@ class ROPParserX86:
                 operands.update({"operand2":operand2})
             # contruct all exps based on the instruction
             if len(ins[1]) > 0:
+                if prefix == "xchg":
+                    # operand1 can be mem, operand2 must be reg
+                    operand1 = op_str.split(", ")[0]
+                    operand2 = op_str.split(", ")[1]
+                    op1k = None
+                    op1v = None
+                    if operand2 in self.Tregs:
+                        temp = Exp.parse(self.Tregs[operand2][1], {})
+                        for k, v in temp.items():
+                            v = v.binding(regs)
+                            v = v.binding({operand2:operands["operand1"]})
+                            v.length = Exp.defaultLength
+                            op1k = k
+                            op1v = v
+                    else:
+                        operands["operand1"].length = Exp.defaultLength
+                        op1k = operand2
+                        op1v = operands["operand1"]
+
+                    if operand1 in self.Tregs:
+                        temp = Exp.parse(self.Tregs[operand1][1], {})
+                        for k, v in temp.items():
+                            v = v.binding(regs)
+                            v = v.binding({operand1:operands["operand2"]})
+                            v.length = Exp.defaultLength
+                            regs.update({k:v})
+                    elif operand1 in self.regs or operand1 == "ssp":
+                        operands["operand2"].length = Exp.defaultLength
+                        regs.update({operand1:operands["operand2"]})
+                    else:
+                        # mem
+                        regs.update({operand1:operands["operand2"]})
+                    regs.update({op1k:op1v})
+                    return self.parseInst(regs, insts, i+1)
+
                 exps = Exp.parse(ins[1][0], operands)
                 for reg, val in exps.items():
                     if reg == "temp":
@@ -295,8 +335,7 @@ class ROPParserX86:
                             regs.update({k:v})
                     else:
                         # mem
-                        val.length = Exp.defaultLength
-                        regs.update({str(reg):val})
+                        regs.update({str(operands["operand1"]):val})
                 if prefix == "push":
                     regs.update({"ssp":Exp(regs["ssp"], "+", Exp(self.aligned))})
                 if prefix == "pop":
@@ -317,8 +356,8 @@ class ROPParserX86:
                             # "CF = 1" 
                             v.length = 1
                             regs.update({tokens[0]:v})
-            i = i + 1
-            return self.parseInst(regs, insts, i)
+
+            return self.parseInst(regs, insts, i+1)
 
 
 if __name__ == '__main__':

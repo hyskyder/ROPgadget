@@ -1,10 +1,7 @@
 #!/usr/bin/env python2
 ## -*- coding: utf-8 -*-
 ##
-##  Jonathan Salwan - 2014-05-13
-##
-##  http://shell-storm.org
-##  http://twitter.com/JonathanSalwan
+##  Xiaofan Zhang - banban0802@gmail.com
 ##
 ##  This program is free software: you can redistribute it and/or modify
 ##  it under the terms of the GNU General Public License as published by

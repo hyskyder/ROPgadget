@@ -59,6 +59,11 @@ class Exp:
             self.length = int(str(right)) - int(str(left)) + 1
         elif self.op == '#':
             self.length = left.length + right.length
+        else:
+            if isinstance(left, Exp):
+                self.length = max(left.length, self.length)
+            if isinstance(right, Exp):
+                self.length = max(right.length, self.length)
 
         '''
         if isinstance(left, Exp):
@@ -114,7 +119,7 @@ class Exp:
     # return True if exp is Mem determined by esp only
     def isControl(self):
         if self.op is not None and self.op == "condition":
-            return self.condition.isControl()
+            return self.condition.isControl() 
 
         if self.getCategory() != 3:
             return False
@@ -278,10 +283,11 @@ class Exp:
                 )
 
     def binding(self, mapping):
-        if str(self) in mapping.keys():
+        if ( self.getCategory() == 3 and str(self) in mapping.keys() ) or ( isinstance(self.left, str) and self.left in mapping.keys()):
             exp = deepcopy(mapping[str(self)])
             exp.length = self.length
             return exp
+        '''
         left = True 
         right = True
         condition = True
@@ -295,13 +301,24 @@ class Exp:
             if k == str(self.condition):
                 self.condition = deepcopy(v)
                 condition = False
-
-        if left and isinstance(self.left, Exp):
+        '''
+        if isinstance(self.left, Exp):
             self.left = self.left.binding(mapping)
-        if right and isinstance(self.right, Exp):
+        if isinstance(self.right, Exp):
             self.right = self.right.binding(mapping)
-        if condition and isinstance(self.condition, Exp):
+        if isinstance(self.condition, Exp):
             self.condition = self.condition.binding(mapping)
+
+        if self.op is not None and (self.op == '$' or self.op == '#') :
+            pass
+        else:
+            if isinstance(self.left, Exp):
+                self.length = max(self.length, self.left.length)
+            if isinstance(self.right, Exp):
+                self.length = max(self.length, self.right.length)
+            if self.condition is not None and isinstance(self.condition, Exp):
+                self.length = max(self.length, self.condition.length)
+
         return self
 
     @staticmethod

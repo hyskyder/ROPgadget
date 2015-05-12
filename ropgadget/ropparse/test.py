@@ -4,6 +4,7 @@ from arch.parserx86 import *
 from arch.expression import *
 from arch.semantic import *
 from ROPChain import *
+import cProfile, pstats, StringIO
 
 class BinaryStub():
     def __init__(self):
@@ -14,7 +15,6 @@ class BinaryStub():
 
     def getArchMode(self):
         return CS_MODE_32
-
 class ExpTestCase(unittest.TestCase):
     def testGetCat(self):
         print "Test Exp binding...................................."
@@ -133,14 +133,13 @@ class ExpTestCase(unittest.TestCase):
 
 class ParserX86TestCase1(unittest.TestCase):
     def setUp(self):
-        gadget1 = [{"mnemonic":"adc", "op_str":"al, 0x41", "vaddr":1} , {"mnemonic":"xor", "op_str":"eax, eax", "vaddr":1}, {"mnemonic":"adc", "op_str":"al, -2", "vaddr":1}, {"mnemonic":"jbe", "op_str":"0x123123", "vaddr":1}]
-        gadget2 = [{"mnemonic":"cmove", "op_str":"ebx, eax", "vaddr":3}]
-        gadget3 = [{"mnemonic":"add", "op_str":"eax, ebx", "vaddr":3},  {"mnemonic":"ret", "op_str":"", "vaddr":3}]
-        gadget4 = [{"mnemonic":"adc", "op_str":"al, 0x41", "vaddr":1} ]#, {"mnemonic":"xor", "op_str":"eax, eax", "vaddr":1}, {"mnemonic":"adc", "op_str":"al, -2", "vaddr":1}, {"mnemonic":"jbe", "op_str":"0x123123", "vaddr":1}]
-        gadget5 = [{"mnemonic":"mov", "op_str":"eax, 0x123123", "vaddr":5}, {"mnemonic":"ret", "op_str":"4", "vaddr":5}]
-        gadget6 = [{"mnemonic":"cmp", "op_str":"eax, 2", "vaddr":5}, {"mnemonic":"jle", "op_str":"0x123123", "vaddr":5}]
-        #gadget7 = [{"mnemonic":"add", "op_str":"byte ptr [eax], al", "vaddr":6}, {"mnemonic":"ja", "op_str":"0x123123", "vaddr":5}]
-        gadget7 = [{"mnemonic":"ja", "op_str":"0x123123", "vaddr":5}]
+        gadget1 = {"insns": [{"mnemonic":"adc", "op_str":"al, 0x41"} , {"mnemonic":"xor", "op_str":"eax, eax"}, {"mnemonic":"adc", "op_str":"al, -2"}, {"mnemonic":"jbe", "op_str":"0x123123"}], "vaddr":1 }
+        gadget2 = {"insns":[{"mnemonic":"cmove", "op_str":"ebx, eax"}], "vaddr":2}
+        gadget3 = {"insns":[{"mnemonic":"add", "op_str":"eax, ebx"},  {"mnemonic":"ret", "op_str":""}], "vaddr":3}
+        gadget4 = {"insns":[{"mnemonic":"adc", "op_str":"al, 0x41"}], "vaddr":4}
+        gadget5 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 0x123123"}, {"mnemonic":"ret", "op_str":"4"}], "vaddr":5}
+        gadget6 = {"insns":[{"mnemonic":"cmp", "op_str":"eax, 2"}, {"mnemonic":"jle", "op_str":"0x123123"}], "vaddr":6}
+        gadget7 = {"insns":[{"mnemonic":"ja", "op_str":"0x123123"}], "vaddr":7}
         gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5, gadget6, gadget7]
         self.parser = ROPParserX86(gadgets, BinaryStub().getArchMode()) 
         self.formula = self.parser.parse()
@@ -148,35 +147,39 @@ class ParserX86TestCase1(unittest.TestCase):
 
 class ParserX86TestCase2(unittest.TestCase):
     def setUp(self):
-        gadget1 = [{"mnemonic":"mov", "op_str":"eax, 1", "vaddr":1}]
-        gadget2 = [{"mnemonic":"cmove", "op_str":"ebx, eax", "vaddr":3}]
-        gadget3 = [{"mnemonic":"push", "op_str":"eax", "vaddr":2}]
-        gadget4 = [{"mnemonic":"pop", "op_str":"eax", "vaddr":2}]
-        gadget5 = [{"mnemonic":"stc", "op_str":"", "vaddr":4}]
-        gadget6 = [{"mnemonic":"adc", "op_str":"ecx, byte ptr [edx]", "vaddr":5}]
-        gadget7 = [{"mnemonic":"sub", "op_str":"ecx, byte ptr [edx]", "vaddr":5}]
-        gadget8 = [{"mnemonic":"cmp", "op_str":"ecx, byte ptr [edx]", "vaddr":5}]
-        gadget9 = [{"mnemonic":"inc", "op_str":"ecx", "vaddr":5}]
-        gadget10 = [{"mnemonic":"dec", "op_str":"ecx", "vaddr":5}]
-        gadget11 = [{"mnemonic":"neg", "op_str":"ecx", "vaddr":5}]
-        gadget12 = [{"mnemonic":"call", "op_str": "eax", "vaddr": "5"}]
-        gadget13 = [{"mnemonic":"jmp", "op_str": "eax", "vaddr": "5"}]
-        gadget14 = [{"mnemonic":"je", "op_str": "eax", "vaddr": "5"}]
-        gadget15 = [{"mnemonic":"and", "op_str":"ecx, edx", "vaddr":5}]
-        gadget16 = [{"mnemonic":"or", "op_str":"ecx, edx", "vaddr":5}]
-        gadget17 = [{"mnemonic":"xor", "op_str":"ecx, edx", "vaddr":5}]
-        gadget18 = [{"mnemonic":"not", "op_str":"ecx", "vaddr":5}]
-        gadget19 = [{"mnemonic":"test", "op_str":"ecx, byte ptr [edx]", "vaddr":5}]
-        gadget20 = [{"mnemonic":"lea", "op_str":"ecx, byte ptr [edx]", "vaddr":5}]
-        gadget21 = [{"mnemonic":"pop", "op_str":"eax", "vaddr":2}, {"mnemonic":"pop", "op_str":"eax", "vaddr":3}]
-        gadget22 = [{"mnemonic":"push", "op_str":"eax", "vaddr":2}, {"mnemonic":"push", "op_str":"eax", "vaddr":3}]
-        gadget23 = [{"mnemonic":"add", "op_str":"esp, 4", "vaddr":5}]
+        gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 1"}], "vaddr":1}
+        gadget2 = {"insns":[{"mnemonic":"cmove", "op_str":"ebx, eax"}], "vaddr":2}
+        gadget3 = {"insns":[{"mnemonic":"push", "op_str":"eax"}], "vaddr":3}
+        gadget4 = {"insns":[{"mnemonic":"pop", "op_str":"eax"}], "vaddr":4}
+        gadget5 = {"insns":[{"mnemonic":"stc", "op_str":""}], "vaddr":5}
+        gadget6 = {"insns":[{"mnemonic":"adc", "op_str":"ecx, byte ptr [edx]"}], "vaddr":6}
+        gadget7 = {"insns":[{"mnemonic":"sub", "op_str":"ecx, byte ptr [edx]"}], "vaddr":7}
+        gadget8 = {"insns":[{"mnemonic":"cmp", "op_str":"ecx, byte ptr [edx]"}], "vaddr":8}
+        gadget9 = {"insns":[{"mnemonic":"inc", "op_str":"ecx"}], "vaddr":9}
+        gadget10 = {"insns":[{"mnemonic":"dec", "op_str":"ecx"}], "vaddr":10}
+        gadget11 = {"insns":[{"mnemonic":"neg", "op_str":"ecx"}], "vaddr":11}
+        gadget12 = {"insns":[{"mnemonic":"call", "op_str": "eax"}], "vaddr":12}
+        gadget13 = {"insns":[{"mnemonic":"jmp", "op_str": "eax"}], "vaddr":13}
+        gadget14 = {"insns":[{"mnemonic":"je", "op_str": "eax"}], "vaddr":14}
+        gadget15 = {"insns":[{"mnemonic":"and", "op_str":"ecx, edx"}], "vaddr":15}
+        gadget16 = {"insns":[{"mnemonic":"or", "op_str":"ecx, edx"}], "vaddr":16}
+        gadget17 = {"insns":[{"mnemonic":"xor", "op_str":"ecx, edx"}], "vaddr":17}
+        gadget18 = {"insns":[{"mnemonic":"not", "op_str":"ecx"}], "vaddr":18}
+        gadget19 = {"insns":[{"mnemonic":"test", "op_str":"ecx, byte ptr [edx]"}], "vaddr":19}
+        gadget20 = {"insns":[{"mnemonic":"lea", "op_str":"ecx, byte ptr [edx]"}], "vaddr":20}
+        gadget21 = {"insns":[{"mnemonic":"pop", "op_str":"eax"}, {"mnemonic":"pop", "op_str":"eax"}], "vaddr":21}
+        gadget22 = {"insns":[{"mnemonic":"push", "op_str":"eax"}, {"mnemonic":"push", "op_str":"eax"}], "vaddr":22}
+        gadget23 = {"insns":[{"mnemonic":"add", "op_str":"esp, 4"}], "vaddr":23}
+        gadget24 = {"insns":[{"mnemonic":"xchg", "op_str":"eax, ebx"}], "vaddr":24}
+        gadget25 = {"insns":[{"mnemonic":"xchg", "op_str":"ax, bx"}], "vaddr":25}
+        gadget26 = {"insns":[{"mnemonic":"add", "op_str":"byte ptr [ecx], edx"}], "vaddr":26}
 
-        gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5, gadget6, gadget7, gadget8, gadget9, gadget10, gadget11, gadget12, gadget13, gadget14, gadget15, gadget16, gadget17, gadget18, gadget19, gadget20, gadget21, gadget22, gadget23]
+        gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5, gadget6, gadget7, gadget8, gadget9, gadget10, gadget11, gadget12, gadget13, gadget14, gadget15, gadget16, gadget17, gadget18, gadget19, gadget20, gadget21, gadget22, gadget23, gadget24, gadget25, gadget26]
         self.parser = ROPParserX86(gadgets, BinaryStub().getArchMode()) 
         self.formula = self.parser.parse()
 
     def testParseInst(self):
+        print "Testing parsing instruction"
         assert len(self.formula[0].regs) == 2 and str(self.formula[0].regs["eax"]) == "1" and str(self.formula[0].regs["ssp"]) == "ssp"
         assert len(self.formula[1].regs) == 2 and str(self.formula[1].regs["ebx"]) == "( ( ZF == 1 ) ? eax : ebx )"
         assert len(self.formula[2].regs) == 2 and str(self.formula[2].regs["ssp"]) == "( ssp + 4 )" and str(self.formula[2].regs["[ ssp ]"]) == "eax"
@@ -200,13 +203,17 @@ class ParserX86TestCase2(unittest.TestCase):
         assert len(self.formula[20].regs) == 2 and str(self.formula[20].regs["ssp"]) == "( ( ssp - 4 ) - 4 )" and str(self.formula[20].regs["eax"]) == "[ ( ssp - 4 ) ]"
         assert len(self.formula[21].regs) == 3 and str(self.formula[21].regs["ssp"]) == "( ( ssp + 4 ) + 4 )" and str(self.formula[21].regs["[ ssp ]"]) == "eax" and str(self.formula[21].regs["[ ( ssp + 4 ) ]"]) == "eax"
         assert set(self.formula[22].regs) == set(['PF', 'CF', 'AF', 'OF', 'ZF', 'ssp', 'SF']) and str(self.formula[22].regs["ssp"]) == "( ssp + 4 )" 
+        assert set(self.formula[23].regs) == set(['ssp', 'eax', 'ebx']) and str(self.formula[23].regs["eax"]) == "ebx" and str(self.formula[23].regs["ebx"]) == "eax" 
+        assert set(self.formula[24].regs) == set(['ssp', 'eax', 'ebx']) and str(self.formula[24].regs["eax"]) == "( ( eax $ 16 : 31 ) # ( ebx $ 0 : 15 ) )" and str(self.formula[24].regs["ebx"]) == "( ( ebx $ 16 : 31 ) # ( eax $ 0 : 15 ) )" 
+        assert set(self.formula[25].regs.keys()) == set(["ssp", "[ ecx ]", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[25].regs["[ ecx ]"]) == "( [ ecx ] + edx )"
+
 class ROPChainTestCase1(unittest.TestCase):
     def setUp(self):
-        gadget1 = [{"mnemonic":"mov", "op_str":"eax, 1", "vaddr":1}, {"mnemonic":"ret", "op_str": "", "vaddr": "1"}]
-        gadget2 = [{"mnemonic":"pop", "op_str":"eax", "vaddr":2},    {"mnemonic":"ret", "op_str": "", "vaddr": "2"}]
-        gadget3 = [{"mnemonic":"mov", "op_str":"ebx, eax", "vaddr":3}, {"mnemonic":"ret", "op_str": "", "vaddr": "3"}]
-        gadget4 = [{"mnemonic":"mov", "op_str":"edx, esp", "vaddr":4}, {"mnemonic":"add", "op_str":"esp, 4", "vaddr":"4"}, {"mnemonic":"ret", "op_str": "", "vaddr": "4"}]
-        gadget5 = [{"mnemonic":"mov", "op_str":"ecx, byte ptr [edx]", "vaddr":5}, {"mnemonic":"ret", "op_str": "", "vaddr": "5"}]
+        gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 1"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
+        gadget2 = {"insns":[{"mnemonic":"pop", "op_str":"eax"},    {"mnemonic":"ret", "op_str": ""}], "vaddr":2}
+        gadget3 = {"insns":[{"mnemonic":"mov", "op_str":"ebx, eax"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":3}
+        gadget4 = {"insns":[{"mnemonic":"mov", "op_str":"edx, esp"}, {"mnemonic":"add", "op_str":"esp, 4"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":4}
+        gadget5 = {"insns":[{"mnemonic":"mov", "op_str":"ecx, byte ptr [edx]"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":5}
 
         gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5]
         self.rop = ROPChain(BinaryStub(), gadgets, False, 2)
@@ -215,28 +222,22 @@ class ROPChainTestCase1(unittest.TestCase):
         print "Testing with multi regs..............................."
         res = list(self.rop.Start({"eax": Exp.ExpL(32, 1), "ebx": Exp.ExpL(32, 1)}))
         for r in res:
-            assert r.getAddress() == [2, 3] or r.getAddress() == [1, 3]
+            assert r.getAddress() == ["0x2", "0x3"] or r.getAddress() == ["0x1", "0x3"]
 
         self.rop.deepth = 4
         res = list(self.rop.Start({"eax": Exp.ExpL(32, 10), "ebx": Exp.ExpL(32, 1)}))
         for r in res:
             print r
-            assert r.getAddress() == [1, 3, 2] or r.getAddress() == [2, 3, 2]
+            assert r.getAddress() == ["0x1", "0x3", "0x2"] or r.getAddress() == ["0x2", "0x3", "0x2"]
 
 
     def testOneCond(self):
         print "Testing with one reg..............................."
-        res = list(self.rop.Start({"eax": Exp.ExpL(32, 21213)}))
-        assert len(res) == 1 and len(res[0].gadgets) == 1 and res[0].getAddress() == [2]
-
-        res = list(self.rop.Start({"eax": Exp.ExpL(32, -21213)}))
-        assert len(res) == 1 and len(res[0].gadgets) == 1 and res[0].getAddress() == [2]
-
         res = list(self.rop.Start({"ebx": Exp("eax")}))
-        assert len(res) == 1 and len(res[0].gadgets) == 1 and res[0].getAddress() == [3]
+        assert len(res) == 1 and res[0].getAddress() == ["0x3"]
 
         res = list(self.rop.Start({"edx": Exp("ssp")}))
-        assert len(res) == 1 and len(res[0].gadgets) == 1 and res[0].getAddress() == [4]
+        assert len(res) == 1 and res[0].getAddress() == ["0x4"]
 
         # TODO, Mem + regs
         # res = list(self.rop.Start({"ecx": Exp("ecx", "+", Exp("edx", "*"))}))
@@ -245,25 +246,15 @@ class ROPChainTestCase1(unittest.TestCase):
         # res = list(self.rop.Start({"ecx": Exp("ecx", "+", "1")}))
         # assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [4, 5] 
 
-        res = list(self.rop.Start({"ebx": Exp.ExpL(32, "1111")}))
-        print res
-        assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [2, 3] 
-
-        res = list(self.rop.Start({"edx": Exp.ExpL(32, "1111")}))
-        assert len(res) == 0
-
         res = list(self.rop.Start({"ebx": Exp.ExpL(32, "1")}))
         for r in res:
-            assert r.getAddress() == [2, 3] or r.getAddress() == [1, 3]
-
-        res = list(self.rop.Start({"ecx": Exp.ExpL(32, "1111")}))
-        assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [4, 5] 
+            assert r.getAddress() == ["0x2", "0x3"] or r.getAddress() == ["0x1", "0x3"]
 
 class ROPChainTestCase2(unittest.TestCase):
 
     def setUp(self):
-        gadget7 = [{"mnemonic":"pop", "op_str":"eax", "vaddr":7},  {"mnemonic":"ret", "op_str":"", "vaddr":7}]
-        gadget1 = [{"mnemonic":"mov", "op_str":"ecx, ebx", "vaddr":1},  {"mnemonic":"call", "op_str":"eax", "vaddr":9}]
+        gadget7 = {"insns":[{"mnemonic":"pop", "op_str":"eax"},  {"mnemonic":"ret", "op_str":""}], "vaddr":7}
+        gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"ecx, ebx"},  {"mnemonic":"call", "op_str":"eax"}], "vaddr":1}
 
         gadgets = [gadget1, gadget7]
         self.rop = ROPChain(BinaryStub(), gadgets, False, 4)
@@ -272,30 +263,30 @@ class ROPChainTestCase2(unittest.TestCase):
         print "Testing COP gadgets..........................................."
 
         res = list(self.rop.Start({"ecx": Exp("ebx")}))
-        assert len(res) == 1 and ( res[0].getAddress() == [7, 1])
+        assert len(res) == 1 and ( res[0].getAddress() == ["0x7", "0x1"])
 
 class ROPChainTestCase3(unittest.TestCase):
 
     def setUp(self):
-        gadget6 = [{"mnemonic":"stc", "op_str":"", "vaddr":6},      {"mnemonic":"ret", "op_str": "", "vaddr":"6"}]
-        gadget7 = [{"mnemonic":"pop", "op_str":"eax", "vaddr":7},  {"mnemonic":"ret", "op_str":"", "vaddr":7}]
-        gadget9 = [{"mnemonic":"cmovb", "op_str":"edx, ecx", "vaddr":9},  {"mnemonic":"jc", "op_str":"eax", "vaddr":9}]
+        gadget6 = {"insns":[{"mnemonic":"stc", "op_str":""},      {"mnemonic":"ret", "op_str": ""}], "vaddr":6}
+        gadget7 = {"insns":[{"mnemonic":"pop", "op_str":"eax"},  {"mnemonic":"ret", "op_str":""}], "vaddr":7}
+        gadget9 = {"insns":[{"mnemonic":"cmovb", "op_str":"edx, ecx"},  {"mnemonic":"jmp", "op_str":"eax"}], "vaddr":9}
 
         gadgets = [gadget6, gadget9, gadget7]
-        self.rop = ROPChain(BinaryStub(), gadgets, False, 4)
+        self.rop = ROPChain(BinaryStub(), gadgets, False, 3)
 
     def testJOP(self):
         print "Testing JOP gadgets..........................................."
 
         res = list(self.rop.Start({"edx": Exp("ecx")}))
-        assert len(res) == 1 and ( res[0].getAddress() == [7, 6, 9] or res[0].getAddress() == [6, 7 , 9])
+        assert len(res) == 1 and ( res[0].getAddress() == ["0x7", "0x6", "0x9"] or res[0].getAddress() == ["0x6", "0x7" , "0x9"])
 
 class ROPChainTestCase4(unittest.TestCase):
 
     def setUp(self):
-        gadget1 = [{"mnemonic":"mov", "op_str":"al, 1", "vaddr":1},      {"mnemonic":"ret", "op_str": "", "vaddr":"1"}]
-        gadget2 = [{"mnemonic":"mov", "op_str":"ah, 1", "vaddr":2},  {"mnemonic":"ret", "op_str":"", "vaddr":2}]
-        gadget3 = [{"mnemonic":"mov", "op_str":"eax, 0", "vaddr":3},  {"mnemonic":"ret", "op_str":"", "vaddr":3}]
+        gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"al, 1"},      {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
+        gadget2 = {"insns":[{"mnemonic":"mov", "op_str":"ah, 1"},  {"mnemonic":"ret", "op_str":""}], "vaddr":2}
+        gadget3 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 0"},  {"mnemonic":"ret", "op_str":""}], "vaddr":3}
 
         gadgets = [gadget1, gadget2, gadget3]
         self.rop = ROPChain(BinaryStub(), gadgets, False, 2)
@@ -303,24 +294,39 @@ class ROPChainTestCase4(unittest.TestCase):
     def testSubRegs(self):
         print "Testing sub regs gadgets..........................................."
         res = list(self.rop.Start({"eax": Exp.ExpL(32, 1)}))
-        assert len(res) == 1 and res[0].getAddress() == [3, 1]
+        print res[0].getAddress()
+        assert len(res) == 1 and res[0].getAddress() == ["0x3", "0x1"]
 
         self.rop.deepth = 3
         res = list(self.rop.Start({"eax": Exp.ExpL(32, 257)}))
         for r in res:
-            assert (r.getAddress() == [3, 1, 2] or r.getAddress() == [3, 2, 1]) 
+            assert (r.getAddress() == ["0x3", "0x1", "0x2"] or r.getAddress() == ["0x3", "0x2", "0x1"]) 
 
 class ROPChainTestCase5(unittest.TestCase):
     def setUp(self):
-        gadget1 = [{"mnemonic":"pop", "op_str":"eax", "vaddr":1},      {"mnemonic":"ret", "op_str": "", "vaddr":"1"}]
-        gadget2 = [{"mnemonic":"pop", "op_str":"ebx", "vaddr":2},  {"mnemonic":"ret", "op_str":"", "vaddr":2}]
-        gadget3 = [{"mnemonic":"add", "op_str":"eax, ebx", "vaddr":3},  {"mnemonic":"ret", "op_str":"", "vaddr":3}]
-        gadget4 = [{"mnemonic":"mov", "op_str":"ecx, byte ptr [eax]", "vaddr":4},  {"mnemonic":"ret", "op_str":"", "vaddr":3}]
+        gadget1 = {"insns":[{"mnemonic":"pop", "op_str":"eax"},      {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
+        gadget2 = {"insns":[{"mnemonic":"pop", "op_str":"ebx"},  {"mnemonic":"ret", "op_str":""}], "vaddr":2}
+        gadget3 = {"insns":[{"mnemonic":"add", "op_str":"eax, ebx"},  {"mnemonic":"ret", "op_str":""}], "vaddr":3}
+        gadget4 = {"insns":[{"mnemonic":"mov", "op_str":"ecx, byte ptr [eax]"},  {"mnemonic":"ret", "op_str":""}], "vaddr":4}
 
         gadgets = [gadget1, gadget2, gadget3, gadget4]
         self.rop = ROPChain(BinaryStub(), gadgets, False, 1)
 
     def testComplexMem(self):
         print "Testing complex mem location for reg sat..........................................."
+class ROPChainTestCase6(unittest.TestCase):
+    def setUp(self):
+        gadget1 = {"insns":[{"mnemonic":"add", "op_str":"eax, 6"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
+        gadget2 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 0"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":2}
+        gadget3 = {"insns":[{"mnemonic":"add", "op_str":"eax, 2"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":3}
+        gadget4 = {"insns":[{"mnemonic":"add", "op_str":"eax, 100"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":4}
+        gadget7 = {"insns":[{"mnemonic":"add", "op_str":"ebx, 100"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":5}
+        gadget8 = {"insns":[{"mnemonic":"add", "op_str":"ecx, 100"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":6}
+        gadgets = [gadget1, gadget2, gadget3, gadget4,  gadget7, gadget8]
+        self.rop = ROPChain(BinaryStub(), gadgets, False, 10)
+
+    def testDebug(self):
+        res = list(self.rop.Start({"eax": Exp.ExpL(32, 50)}))
+
 if __name__ == "__main__":
     unittest.main()
