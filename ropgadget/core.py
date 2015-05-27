@@ -78,13 +78,66 @@ class Core(cmd.Cmd):
 
         arch = self.__binary.getArchMode()
         print "Gadgets information\n============================================================"
+        insns = {}
+        total = 0
         strs = []
         for gadget in self.__gadgets:
             vaddr = gadget["vaddr"]
             insts = gadget["gadget"]
+            for insn in gadget["insns"]:
+                prefix = insn["mnemonic"]
+                total = total + 1
+                if not prefix in insns.keys():
+                    insns[prefix] = 0
+                else:
+                    insns[prefix] = insns[prefix] + 1
             strs.append(gadget)
             print ("0x%08x" %(vaddr) if arch == CS_MODE_32 else "0x%016x" %(vaddr)) + " : %s" %(insts)
         print "\nUnique gadgets found: %d" %(len(self.__gadgets))
+        '''
+        print "\ntotol instruction count",total 
+        print "RET/CALL", 
+        count = 0
+        for prefix in ["ret","call"]:
+            count += insns.get(prefix, 0)
+        print count, float(count)/total
+        print "JMP"
+        count = 0
+        for prefix in ["jmp", "call", "ja", "jae", "jb", "jbe", "jc", "je", "jnc", "jne", "jp", "jg", "jge", "jl", "jle", "jno", "jo", "js"]:
+            count += insns.get(prefix, 0)
+        print count, float(count)/total
+        print "PUSH/POP"
+        count = 0
+        for prefix in ["push", "pop"]:
+            count += insns.get(prefix, 0)
+        print count, float(count)/total
+        print "XCHG/MOV" 
+        count = 0
+        for prefix in ["xchg", "mov","cmove","cmovne","cmova","cmovae","cmovb","cmobbe","cmovg","cmovge","cmovl","cmovle","cmovs","cmovp"]:
+            count += insns.get(prefix, 0)
+        print count, float(count)/total
+        print "ADD/SUB"
+        count = 0
+        for prefix in ["add","adc","sub","sbb","inc","dec","neg"]:
+            count += insns.get(prefix, 0)
+        print count, float(count)/total
+        print "XOR/AND"
+        count = 0
+        for prefix in ["xor","and","or","not"]:
+            count += insns.get(prefix, 0)
+        print count, float(count)/total
+
+        print "CMP/TEST"
+        count = 0
+        for prefix in ["cmp","test"]:
+            count += insns.get(prefix, 0)
+        print count, float(count)/total
+        print "STC/CLC/CMC"
+        count = 0
+        for prefix in ["stc","clc","cmc","cld","std","cli"]:
+            count += insns.get(prefix, 0)
+        print count, float(count)/total
+        '''
         if self.__options.ropparse:
             rop = ROPChain(self.__binary, strs, False, self.__options.length, self.__options.enableStack)
             rop.Core()

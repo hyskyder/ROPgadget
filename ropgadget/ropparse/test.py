@@ -15,6 +15,7 @@ class BinaryStub():
 
     def getArchMode(self):
         return CS_MODE_32
+'''
 class ExpTestCase(unittest.TestCase):
     def testGetCat(self):
         print "Test Exp binding...................................."
@@ -314,19 +315,17 @@ class ROPChainTestCase5(unittest.TestCase):
 
     def testComplexMem(self):
         print "Testing complex mem location for reg sat..........................................."
+'''
 class ROPChainTestCase6(unittest.TestCase):
     def setUp(self):
-        gadget1 = {"insns":[{"mnemonic":"add", "op_str":"eax, 6"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
-        gadget2 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 0"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":2}
-        gadget3 = {"insns":[{"mnemonic":"add", "op_str":"eax, 2"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":3}
-        gadget4 = {"insns":[{"mnemonic":"add", "op_str":"eax, 100"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":4}
-        gadget7 = {"insns":[{"mnemonic":"add", "op_str":"ebx, 100"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":5}
-        gadget8 = {"insns":[{"mnemonic":"add", "op_str":"ecx, 100"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":6}
-        gadgets = [gadget1, gadget2, gadget3, gadget4,  gadget7, gadget8]
-        self.rop = ROPChain(BinaryStub(), gadgets, False, 10)
+        gadget1 = {"insns":[{"mnemonic":"add", "op_str":"esp, 6"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
+        gadgets = [gadget1]
+        self.parser = ROPParserX86(gadgets, BinaryStub().getArchMode()) 
+        self.formula = self.parser.parse()
 
     def testDebug(self):
-        res = list(self.rop.Start({"eax": Exp.ExpL(32, 50)}))
-
+        for k,v in (self.formula[0].regs).items():
+            print k, v
+        
 if __name__ == "__main__":
     unittest.main()

@@ -8,6 +8,7 @@ from copy import deepcopy
 from z3 import *
 import random
 import math
+import time
 import sys
 import os.path
 import cProfile, pstats, StringIO
@@ -18,6 +19,7 @@ class ROPChain:
         # all the gadgets store by { reg : { cat : [] } }
         self.categories = {}
         self.cop = []
+        self.aba = []
         # gadgets writes to mem
         self.orp = None
         self.mems = []
@@ -61,6 +63,15 @@ class ROPChain:
                 ref = BitVec(reg, 1)
                 self.z3Regs.update({reg:ref})
         self.Category()
+
+    def timing(f):
+        def wrap(*args):
+            time1 = time.time()
+            ret = f(*args)
+            time2 = time.time()
+            print '%s function took %0.3f s' % (f.func_name, (time2-time1)*1.0)
+            return ret
+        return wrap
 
     def Compare(self, left, right=None):
         le = self.Convert(left)
@@ -263,6 +274,14 @@ class ROPChain:
         for k in targets.keys():
             if k not in regs.keys():
                 return False
+            if targets[k].getCategory() != regs[k].getCategory():
+                return False
+            if targets[k].getCategory() == 3:
+                if not is_true(self.Compare(regs[k].left, targets[k].left)):
+                    return False
+            elif not is_true(self.Compare(regs[k], targets[k])):
+                return False 
+            '''
             if targets[k].getCategory() == 0:
                 if self.stack and regs[k].getCategory() == 3:
                     if regs[k].isControl():
@@ -273,7 +292,8 @@ class ROPChain:
                 elif is_true(self.Compare(regs[k], targets[k])):
                     continue
                 return False
-            elif regs[k].getCategory() == 3:
+            elif targets[k].getCategory() == 3:
+
                 return False  
             else:
                 temp = targets[k].getRegs()
@@ -282,6 +302,7 @@ class ROPChain:
                         return False
                 if not is_true(self.Compare(regs[k], targets[k])):
                     return False
+            '''
         return True
         '''
         if str(self.solver.check()) == "sat":
@@ -326,7 +347,16 @@ class ROPChain:
                 break
             elif string.split()[0] == "print" or string.split()[0] == "p":
                 reg = string.split()[1]
-                if len(string.split()) == 3:
+                if reg == "cop":
+                    for gadget in self.cop:
+                        self.printGadgets(gadget.getAddress())
+                elif reg == "mem":
+                    for gadget in self.mems:
+                        print (gadget.getAddress())
+                        for k, v in gadget.regs.items():
+                            if k != "sip" and k != "ssp" and k not in self.z3Regs:
+                                print k, " ===> ", v
+                elif len(string.split()) == 3:
                     cat = int(string.split()[2])
                     for s in self.categories[reg][cat]:
                         print (s.getAddress())
@@ -336,6 +366,22 @@ class ROPChain:
                         for s in self.categories[reg][k]:
                             print (s.getAddress())
                             print reg, " ===> ", s.regs[reg]
+                continue
+            elif string.split()[0] == "mem":
+                tokens = string.split(',')[0][1:]
+                mem = Exp.parseExp(tokens)
+                tokens = string.split(',')[1]
+                val = Exp.parseExp(tokens)
+                for gadget in self.mems:
+                    for reg, val in semantic.regs.items():
+                        if reg != "sip" and reg != "ssp" and reg not in self.z3Regs:
+                            if len(reg) == 7:
+                                reg = reg.split()[1]
+                                c = deepcopy(gadget)
+                                if self.Chain([], reg, val, [reg], 6, None, c, 1, []):
+                                    break
+                            else:
+                                break
                 continue
             regs = {}
             exps = string.split(';')
@@ -347,14 +393,16 @@ class ROPChain:
                     val = Exp(val)
                 val.length = Exp.defaultLength
                 regs.update({reg:val})
-            self.pr.enable()
             self.Start(regs)
+            '''
+            self.pr.enable()
             self.pr.disable()
             s = StringIO.StringIO()
             sortby = 'cumulative'
             ps = pstats.Stats(self.pr, stream=s).sort_stats(sortby)
             ps.print_stats()
             print s.getvalue()
+            '''
 
     def printGadgets(self, addrs):
         print "gadgets chain of len", len(addrs)
@@ -365,6 +413,7 @@ class ROPChain:
         print addr
         print self.parser.addrs[addr]
 
+    @timing
     def Start(self, regs):
         self.chained = set()
         for i in range(math.factorial(len(regs))):
@@ -514,7 +563,7 @@ class ROPChain:
                             return True
 
         # checks mem location 
-        if cat == 6 or cat == 3:
+        if cat == 3:
             if target in self.categories.keys() and 3 in self.categories[target].keys():
                 for semantic in self.categories[target][3]:
                     if self.Overlap(reserve, semantic.regs):
@@ -544,10 +593,9 @@ class ROPChain:
                         elif self.Chain(reserve, reg, val,[str(c.regs[reg])], -1, prev, c, deepth+1, constraints):
                             return True
 
-        '''
         # check JOP/COP
         for semantic in self.cop:
-            if reg not in semantic.regs.keys():
+            if target not in semantic.regs.keys() or reg not in semantic.regs.keys():
                 continue
             if self.Overlap(reserve, semantic.regs):
                 continue
@@ -594,7 +642,6 @@ class ROPChain:
                     else:
                         if self.Chain(reserve, reg, val, semantic.regs[target].getCondition().getRegs(), cat, prev, c, deepth+1, constraints):
                             return True
-        '''
         # TODO checks Mem + Regs
         targets.insert(0, target)
         return False
@@ -698,11 +745,14 @@ class ROPChain:
             else:
                 if semantic.regs["sip"].isCond():
                     cond.append(semantic)
+                elif semantic.regs["sip"].getCategory() == 0:
+                    self.aba.append(semantic)
                 else:
                     self.cop.append(semantic)
         print "gadgets with condition ", len(cond)
-        print "gadgets with destination not specified ", len(self.cop)
-        print "gadgets can be directly used", len(self.semantics) - len(self.cop)
+        print "gadgets with fixed return address that must be abandoned ", len(self.aba)
+        print "gadgets with return address not specified ", len(self.cop)
+        print "gadgets can be directly used", len(self.semantics) - len(self.cop) - len(self.aba) 
         '''
         for semantic in cond:
             # fix gadget with condition here
@@ -761,7 +811,7 @@ class ROPChain:
         print "Category as follows:"
         for reg in self.categories.keys():
             for k in self.categories[reg]:
-                print reg, "\t======>\t", k , " with ", len(self.categories[reg][k])
+                #print reg, "\t======>\t", k , " with ", len(self.categories[reg][k])
                 for s in self.categories[reg][k]:
                     pass
                     #print reg, "==>", s.regs[reg]

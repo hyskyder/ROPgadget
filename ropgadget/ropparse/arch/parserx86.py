@@ -242,9 +242,9 @@ class ROPParserX86:
                 # only ret inst can modify ssp
                 if prefix == "ret":
                     ssp = regs["ssp"]
-                    ssp = Exp(ssp, "-", Exp(self.aligned))
+                    ssp = Exp(ssp, "+", Exp(self.aligned))
                     if operand1 is not None:
-                        ssp = Exp(ssp, "-", operand1)
+                        ssp = Exp(ssp, "+", operand1)
                     regs.update({"ssp":ssp})
                 return regs
 
@@ -311,6 +311,8 @@ class ROPParserX86:
 
                 exps = Exp.parse(ins[1][0], operands)
                 for reg, val in exps.items():
+                    if prefix == "xor" and operand1 == operand2:
+                        val = ExpL(val.length, 0)
                     if reg == "temp":
                         # temp variable, no need to assign
                         val.length = max(operand1.length, operand2.length)
