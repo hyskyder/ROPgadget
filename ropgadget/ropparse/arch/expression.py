@@ -30,7 +30,12 @@ class Exp:
     binOp = {"*":1, "%":1, "/":1, "+":2, "-":2, ">>":3, "<<":3, "<":4, "<=":4, ">":4, ">=":4, "==":5, "!=":5, "&":6, "^":7, "|":8, "&&":9, "||":10, "?":11, "$":11, "#":11, "=":12}
     defaultLength = 32
     def __init__(self, left, op=None, right=None, condition=None):
-        if condition != None:			
+        if isinstance(left, unicode) and ( left == u"esp" or left == u"rsp"):
+            self.left = Exp("ssp")
+            self.right = right		
+            self.condition = condition			
+            self.op = op		
+        elif condition != None:			
             self.left = left			
             self.right = right		
             self.condition = condition			
@@ -84,9 +89,11 @@ class Exp:
         elif exp.condition is not None:
             return "( " + self.showLength(exp.condition)  + " $ " + self.showLength(exp.left) + " : " + self.showLength(exp.right) + " )-" + str(exp.length)
         elif exp.right is not None:
+            return "( " + self.showLength(exp.left) + " " + exp.op + " " + self.showLength(exp.right) + " )"
+        elif exp.op is not None:
             if exp.op == '*':
                 return "[ " + self.showLength(exp.left) + " ]-" + str(exp.length)
-            return "( " + self.showLength(exp.left) + " " + exp.op + " " + self.showLength(exp.right) + " )-" + str(exp.length)
+            return exp.op +"( " + self.showLength(exp.left) + " " + " )-" + str(exp.length)
         return self.showLength(exp.left) +"-" + str(exp.length)
 
     def __str__(self):
@@ -285,7 +292,7 @@ class Exp:
     def binding(self, mapping):
         if ( self.getCategory() == 3 and str(self) in mapping.keys() ) or ( isinstance(self.left, str) and self.left in mapping.keys()):
             exp = deepcopy(mapping[str(self)])
-            exp.length = self.length
+            exp.length = max(self.length, mapping[str(self)].length)
             return exp
         '''
         left = True 
@@ -312,13 +319,12 @@ class Exp:
         if self.op is not None and (self.op == '$' or self.op == '#') :
             pass
         else:
-            if isinstance(self.left, Exp):
+            if isinstance(self.left, Exp) and self.length == 0:
                 self.length = max(self.length, self.left.length)
-            if isinstance(self.right, Exp):
+            if isinstance(self.right, Exp) and self.length == 0:
                 self.length = max(self.length, self.right.length)
-            if self.condition is not None and isinstance(self.condition, Exp):
+            if self.condition is not None and isinstance(self.condition, Exp) and self.length == 0:
                 self.length = max(self.length, self.condition.length)
-
         return self
 
     @staticmethod
@@ -338,14 +344,12 @@ class Exp:
                     exp.length = Tregs[string][2]
                     return exp
                 exp = Exp(string)
-                if string == "esp" or string == "rsp":
-                    exp = Exp("ssp")
                 if string in regs.keys():
                     exp = exp.binding(regs)
                 return exp
         else:
             # mem
-            byte = string.split(" ptr [")[0]
+            byte = string.split(" ptr ")[0]
             size = 0
             if byte == "qword":
                 size = 64

@@ -16,6 +16,7 @@ import os
 import re
 import rgutils
 import sqlite3
+import operator
 
 from binary             import Binary
 from capstone           import CS_MODE_32
@@ -95,6 +96,9 @@ class Core(cmd.Cmd):
             print ("0x%08x" %(vaddr) if arch == CS_MODE_32 else "0x%016x" %(vaddr)) + " : %s" %(insts)
         print "\nUnique gadgets found: %d" %(len(self.__gadgets))
         '''
+        sorted_x = sorted(insns.items(), key=operator.itemgetter(1))
+        for v in sorted_x:
+            print v
         print "\ntotol instruction count",total 
         print "RET/CALL", 
         count = 0
@@ -139,7 +143,7 @@ class Core(cmd.Cmd):
         print count, float(count)/total
         '''
         if self.__options.ropparse:
-            rop = ROPChain(self.__binary, strs, False, self.__options.length, self.__options.enableStack)
+            rop = ROPChain(self.__binary, strs, self.__options.optimize, self.__options.length)
             rop.Core()
         return True
 

@@ -222,7 +222,7 @@ class ROPParserX86:
             return regs
         # all control transfer dst must bewteen low and high addr
         prefix = insts[i]["mnemonic"]
-        op_str = insts[i]["op_str"]
+        op_str = insts[i]["op_str"].replace("*", " * ")
         if prefix not in X86.insn.keys():
             # contains not supported ins
             return {}
@@ -274,39 +274,46 @@ class ROPParserX86:
                 operands.update({"operand2":operand2})
             # contruct all exps based on the instruction
             if len(ins[1]) > 0:
+                if prefix == "lea":
+                    reg = op_str.split(", ")[0]
+                    addr = Exp.parseExp(op_str.split("ptr [")[1][:-1].split())
+                    addr = addr.binding(regs)
+                    regs.update({reg:addr})
+                    return self.parseInst(regs, insts, i+1)
+
                 if prefix == "xchg":
-                    # operand1 can be mem, operand2 must be reg
-                    operand1 = op_str.split(", ")[0]
-                    operand2 = op_str.split(", ")[1]
-                    op1k = None
+                    op1k = op_str.split(", ")[0]
+                    op2k = op_str.split(", ")[1]
                     op1v = None
-                    if operand2 in self.Tregs:
-                        temp = Exp.parse(self.Tregs[operand2][1], {})
+                    op2v = None
+                    if op2k in self.Tregs:
+                        temp = Exp.parse(self.Tregs[op2k][1], {op2k:operands["operand1"]})
                         for k, v in temp.items():
-                            v = v.binding(regs)
-                            v = v.binding({operand2:operands["operand1"]})
+                            v.length = Exp.defaultLength
+                            op2k = k
+                            op2v = v
+                    elif op2k in self.regs or op2k == "ssp":
+                        operands["operand1"].length = Exp.defaultLength
+                        op2v = operands["operand1"]
+                    else:
+                        op2k = str(operands["operand1"])
+                        op2v = operands["operand1"]
+
+                    if op1k in self.Tregs:
+                        temp = Exp.parse(self.Tregs[op1k][1], {op2k:operands["operand2"]})
+                        for k, v in temp.items():
                             v.length = Exp.defaultLength
                             op1k = k
                             op1v = v
-                    else:
-                        operands["operand1"].length = Exp.defaultLength
-                        op1k = operand2
-                        op1v = operands["operand1"]
-
-                    if operand1 in self.Tregs:
-                        temp = Exp.parse(self.Tregs[operand1][1], {})
-                        for k, v in temp.items():
-                            v = v.binding(regs)
-                            v = v.binding({operand1:operands["operand2"]})
-                            v.length = Exp.defaultLength
-                            regs.update({k:v})
-                    elif operand1 in self.regs or operand1 == "ssp":
+                    elif op1k in self.regs or op1k == "ssp":
                         operands["operand2"].length = Exp.defaultLength
-                        regs.update({operand1:operands["operand2"]})
+                        op1v = operands["operand2"]
                     else:
-                        # mem
-                        regs.update({operand1:operands["operand2"]})
+                        op1k = str(operands["operand2"])
+                        op1v = operands["operand2"]
+
                     regs.update({op1k:op1v})
+                    regs.update({op2k:op2v})
                     return self.parseInst(regs, insts, i+1)
 
                 exps = Exp.parse(ins[1][0], operands)

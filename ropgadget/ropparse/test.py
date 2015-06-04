@@ -318,14 +318,16 @@ class ROPChainTestCase5(unittest.TestCase):
 '''
 class ROPChainTestCase6(unittest.TestCase):
     def setUp(self):
-        gadget1 = {"insns":[{"mnemonic":"add", "op_str":"esp, 6"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
+        gadget1 = {"insns":[{"mnemonic":"lea", "op_str":"ebp, dword ptr [esp + 0xc]"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
         gadgets = [gadget1]
         self.parser = ROPParserX86(gadgets, BinaryStub().getArchMode()) 
         self.formula = self.parser.parse()
 
     def testDebug(self):
-        for k,v in (self.formula[0].regs).items():
+        for k, v in self.formula[0].regs.items():
             print k, v
+            print v.showLength(v)
+
         
 if __name__ == "__main__":
     unittest.main()
