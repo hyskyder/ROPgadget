@@ -3,7 +3,7 @@ import sys, traceback
 from copy import deepcopy
 
 class Semantic:
-    def __init__(self, regs, addr):
+    def __init__(self, regs, addr, touch=False):
         self.addrs = []
         self.addrs.append(hex(int(addr)))
         self.rets = []
@@ -12,6 +12,7 @@ class Semantic:
         self.regs = regs
         self.deepth = 1
         self.stack = {}
+        self.touchUndefinedMem = touch
 
     def binding(self, prev):
         if prev is None:
@@ -49,7 +50,7 @@ class Semantic:
         self.deepth = self.deepth + semantic.deepth
     
     def getAddress(self):
-        return self.addrs
+        return deepcopy(self.addrs)
 
     def __str__(self):
         string = "length:" + str(self.deepth) + "\n"

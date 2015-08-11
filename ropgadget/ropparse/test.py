@@ -15,10 +15,9 @@ class BinaryStub():
 
     def getArchMode(self):
         return CS_MODE_32
-'''
+
 class ExpTestCase(unittest.TestCase):
     def testGetCat(self):
-        print "Test Exp binding...................................."
         assert Exp("1").getCategory() == 0
         assert Exp("eax").getCategory() == 1
         assert Exp(Exp("eax"), "+", Exp("ebx")).getCategory() == 2
@@ -31,14 +30,12 @@ class ExpTestCase(unittest.TestCase):
         operands.update({"operand1":operand1})
         exp = Exp.parse("operand1 = operand1 ^ operand1", operands)
         for key, val in exp.items():
-            print key, val.getCategory()
             assert val.getCategory() == 3 and key == "operand1"
 
         operand1 = Exp.parseOperand("al", {"eax":Exp("eax")}, {"al":["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8]})
         assert operand1.getCategory() == 1
 
     def testExpBinding(self):
-        print "Test Exp binding...................................."
         exp = Exp("eax")
         exp = exp.binding({"eax":Exp(1)})
         assert str(exp) == "1"
@@ -48,7 +45,6 @@ class ExpTestCase(unittest.TestCase):
 
 
     def testExpParsing(self):
-        print "Test Exp parsing...................................."
         exp = Exp.parseOperand("byte ptr [rax + 0x15]", {}, {})
         assert str(exp) == "[ ( rax + 0x15 ) ]"
         exp = Exp.parseOperand("eax", {"eax":Exp(1)},{})
@@ -67,7 +63,6 @@ class ExpTestCase(unittest.TestCase):
             assert key == "operand1" and str(val) == "( ( eax $ 16 : 31 ) # ax )"
 
     def testExpLength(self):
-        print "Test Exp length...................................."
         operand = Exp.parseOperand("eax", {}, {})
         assert operand.length == 32
 
@@ -180,154 +175,110 @@ class ParserX86TestCase2(unittest.TestCase):
         self.formula = self.parser.parse()
 
     def testParseInst(self):
-        print "Testing parsing instruction"
-        assert len(self.formula[0].regs) == 2 and str(self.formula[0].regs["eax"]) == "1" and str(self.formula[0].regs["ssp"]) == "ssp"
+        assert len(self.formula[0].regs) == 2 and str(self.formula[0].regs["eax"]) == "1" and str(self.formula[0].regs["esp"]) == "esp"
         assert len(self.formula[1].regs) == 2 and str(self.formula[1].regs["ebx"]) == "( ( ZF == 1 ) ? eax : ebx )"
-        assert len(self.formula[2].regs) == 2 and str(self.formula[2].regs["ssp"]) == "( ssp + 4 )" and str(self.formula[2].regs["[ ssp ]"]) == "eax"
-        assert len(self.formula[3].regs) == 2 and str(self.formula[3].regs["ssp"]) == "( ssp - 4 )" and str(self.formula[3].regs["eax"]) == "[ ssp ]"
-        assert len(self.formula[4].regs) == 2 and str(self.formula[4].regs["CF"]) == "1" and str(self.formula[4].regs["ssp"]) == "ssp"
-        assert set(self.formula[5].regs.keys()) == set(["ssp", "ecx", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[5].regs["ecx"]) == "( ( ecx + [ edx ] ) + CF )"
-        assert set(self.formula[6].regs.keys()) == set(["ssp", "ecx", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[6].regs["ecx"]) == "( ecx - [ edx ] )"
-        assert set(self.formula[7].regs.keys()) == set(["ssp", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[7].regs["CF"]) == "( C ( ecx - [ edx ] ) )"
-        assert set(self.formula[8].regs.keys()) == set(["ssp", "AF", "ZF", "OF", "SF","PF", "ecx"]) and str(self.formula[8].regs["ecx"]) == "( ecx + 1 )"
-        assert set(self.formula[9].regs.keys()) == set(["ssp", "AF", "ZF", "OF", "SF","PF", "ecx"]) and str(self.formula[9].regs["ecx"]) == "( ecx - 1 )"
-        assert set(self.formula[10].regs.keys()) == set(["ssp", "AF", "CF", "ZF", "OF", "SF","PF", "ecx"]) and str(self.formula[10].regs["ecx"]) == "( - ecx )"
-        assert len(self.formula[11].regs) == 2 and str(self.formula[11].regs["sip"]) == "[ eax ]" and str(self.formula[11].regs["ssp"]) == "ssp"
-        assert len(self.formula[12].regs) == 2 and str(self.formula[12].regs["sip"]) == "[ eax ]" and str(self.formula[12].regs["ssp"]) == "ssp"
-        assert len(self.formula[13].regs) == 2 and str(self.formula[13].regs["sip"]) == "( ( ZF == 1 ) ? [ eax ] : 0 )" and str(self.formula[13].regs["ssp"]) == "ssp"
-        assert set(self.formula[14].regs.keys()) == set(["CF", "ZF", "OF", "SF","PF", "ecx", "ssp"]) and str(self.formula[14].regs["ecx"]) == "( ecx & edx )" and str(self.formula[14].regs["CF"]) == "0" and str(self.formula[14].regs["OF"]) == "0"
-        assert set(self.formula[15].regs.keys()) == set(["CF", "ZF", "OF", "SF","PF", "ecx", "ssp"]) and str(self.formula[15].regs["ecx"]) == "( ecx | edx )" and str(self.formula[15].regs["CF"]) == "0" and str(self.formula[16].regs["OF"]) == "0"
-        assert set(self.formula[16].regs.keys()) == set(["CF", "ZF", "OF", "SF","PF", "ecx", "ssp"]) and str(self.formula[16].regs["ecx"]) == "( ecx ^ edx )" and str(self.formula[16].regs["CF"]) == "0" and str(self.formula[16].regs["OF"]) == "0"
+        assert len(self.formula[2].regs) == 2 and str(self.formula[2].regs["esp"]) == "( esp + 4 )" and str(self.formula[2].regs["[ esp ]"]) == "eax"
+        assert len(self.formula[3].regs) == 2 and str(self.formula[3].regs["esp"]) == "( esp - 4 )" and str(self.formula[3].regs["eax"]) == "[ esp ]"
+        assert len(self.formula[4].regs) == 2 and str(self.formula[4].regs["CF"]) == "1" and str(self.formula[4].regs["esp"]) == "esp"
+        assert set(self.formula[5].regs.keys()) == set(["esp", "ecx", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[5].regs["ecx"]) == "( ( ecx + [ edx ] ) + CF )"
+        assert set(self.formula[6].regs.keys()) == set(["esp", "ecx", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[6].regs["ecx"]) == "( ecx - [ edx ] )"
+        assert set(self.formula[7].regs.keys()) == set(["esp", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[7].regs["CF"]) == "( C ( ecx - [ edx ] ) )"
+        assert set(self.formula[8].regs.keys()) == set(["esp", "AF", "ZF", "OF", "SF","PF", "ecx"]) and str(self.formula[8].regs["ecx"]) == "( ecx + 1 )"
+        assert set(self.formula[9].regs.keys()) == set(["esp", "AF", "ZF", "OF", "SF","PF", "ecx"]) and str(self.formula[9].regs["ecx"]) == "( ecx - 1 )"
+        assert set(self.formula[10].regs.keys()) == set(["esp", "AF", "CF", "ZF", "OF", "SF","PF", "ecx"]) and str(self.formula[10].regs["ecx"]) == "( - ecx )"
+        assert len(self.formula[11].regs) == 2 and str(self.formula[11].regs["eip"]) == "[ eax ]" and str(self.formula[11].regs["esp"]) == "esp"
+        assert len(self.formula[12].regs) == 2 and str(self.formula[12].regs["eip"]) == "[ eax ]" and str(self.formula[12].regs["esp"]) == "esp"
+        assert len(self.formula[13].regs) == 2 and str(self.formula[13].regs["eip"]) == "( ( ZF == 1 ) ? [ eax ] : 0 )" and str(self.formula[13].regs["esp"]) == "esp"
+        assert set(self.formula[14].regs.keys()) == set(["CF", "ZF", "OF", "SF","PF", "ecx", "esp"]) and str(self.formula[14].regs["ecx"]) == "( ecx & edx )" and str(self.formula[14].regs["CF"]) == "0" and str(self.formula[14].regs["OF"]) == "0"
+        assert set(self.formula[15].regs.keys()) == set(["CF", "ZF", "OF", "SF","PF", "ecx", "esp"]) and str(self.formula[15].regs["ecx"]) == "( ecx | edx )" and str(self.formula[15].regs["CF"]) == "0" and str(self.formula[16].regs["OF"]) == "0"
+        assert set(self.formula[16].regs.keys()) == set(["CF", "ZF", "OF", "SF","PF", "ecx", "esp"]) and str(self.formula[16].regs["ecx"]) == "( ecx ^ edx )" and str(self.formula[16].regs["CF"]) == "0" and str(self.formula[16].regs["OF"]) == "0"
         assert len(self.formula[17].regs) == 2 and str(self.formula[17].regs["ecx"]) == "( ~ ecx )"
-        assert set(self.formula[18].regs.keys()) == set(["ssp", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[18].regs["CF"]) == "0" and str(self.formula[18].regs["OF"]) == "0"
-        assert len(self.formula[19].regs) == 2 and str(self.formula[19].regs["ecx"]) == "( & [ edx ] )"
-        assert len(self.formula[20].regs) == 2 and str(self.formula[20].regs["ssp"]) == "( ( ssp - 4 ) - 4 )" and str(self.formula[20].regs["eax"]) == "[ ( ssp - 4 ) ]"
-        assert len(self.formula[21].regs) == 3 and str(self.formula[21].regs["ssp"]) == "( ( ssp + 4 ) + 4 )" and str(self.formula[21].regs["[ ssp ]"]) == "eax" and str(self.formula[21].regs["[ ( ssp + 4 ) ]"]) == "eax"
-        assert set(self.formula[22].regs) == set(['PF', 'CF', 'AF', 'OF', 'ZF', 'ssp', 'SF']) and str(self.formula[22].regs["ssp"]) == "( ssp + 4 )" 
-        assert set(self.formula[23].regs) == set(['ssp', 'eax', 'ebx']) and str(self.formula[23].regs["eax"]) == "ebx" and str(self.formula[23].regs["ebx"]) == "eax" 
-        assert set(self.formula[24].regs) == set(['ssp', 'eax', 'ebx']) and str(self.formula[24].regs["eax"]) == "( ( eax $ 16 : 31 ) # ( ebx $ 0 : 15 ) )" and str(self.formula[24].regs["ebx"]) == "( ( ebx $ 16 : 31 ) # ( eax $ 0 : 15 ) )" 
-        assert set(self.formula[25].regs.keys()) == set(["ssp", "[ ecx ]", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[25].regs["[ ecx ]"]) == "( [ ecx ] + edx )"
+        assert set(self.formula[18].regs.keys()) == set(["esp", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[18].regs["CF"]) == "0" and str(self.formula[18].regs["OF"]) == "0"
+        assert len(self.formula[19].regs) == 2 and str(self.formula[19].regs["ecx"]) == "edx"
+        assert len(self.formula[20].regs) == 2 and str(self.formula[20].regs["esp"]) == "( ( esp - 4 ) - 4 )" and str(self.formula[20].regs["eax"]) == "[ ( esp - 4 ) ]"
+        assert len(self.formula[21].regs) == 3 and str(self.formula[21].regs["esp"]) == "( ( esp + 4 ) + 4 )" and str(self.formula[21].regs["[ esp ]"]) == "eax" and str(self.formula[21].regs["[ ( esp + 4 ) ]"]) == "eax"
+        assert set(self.formula[22].regs) == set(['PF', 'CF', 'AF', 'OF', 'ZF', 'esp', 'SF']) and str(self.formula[22].regs["esp"]) == "( esp + 4 )" 
+        assert set(self.formula[23].regs) == set(['esp', 'eax', 'ebx']) and str(self.formula[23].regs["eax"]) == "ebx" and str(self.formula[23].regs["ebx"]) == "eax" 
+        assert set(self.formula[24].regs) == set(['esp', 'eax', 'ebx']) and str(self.formula[24].regs["eax"]) == "( ( eax $ 16 : 31 ) # ( ebx $ 0 : 15 ) )" and str(self.formula[24].regs["ebx"]) == "( ( ebx $ 16 : 31 ) # ( eax $ 0 : 15 ) )" 
+        assert set(self.formula[25].regs.keys()) == set(["esp", "[ ecx ]", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[25].regs["[ ecx ]"]) == "( [ ecx ] + edx )"
 
 class ROPChainTestCase1(unittest.TestCase):
     def setUp(self):
-        gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 1"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
-        gadget2 = {"insns":[{"mnemonic":"pop", "op_str":"eax"},    {"mnemonic":"ret", "op_str": ""}], "vaddr":2}
-        gadget3 = {"insns":[{"mnemonic":"mov", "op_str":"ebx, eax"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":3}
-        gadget4 = {"insns":[{"mnemonic":"mov", "op_str":"edx, esp"}, {"mnemonic":"add", "op_str":"esp, 4"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":4}
-        gadget5 = {"insns":[{"mnemonic":"mov", "op_str":"ecx, byte ptr [edx]"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":5}
+        gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"ebx, eax"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
+        gadget2 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 1"},    {"mnemonic":"ret", "op_str": ""}], "vaddr":2}
 
-        gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5]
+        gadget3 = {"insns":[{"mnemonic":"add", "op_str":"ebx, eax"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":3}
+        gadget4 = {"insns":[{"mnemonic":"mov", "op_str":"ebx, 0"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":4}
+
+        gadget5 = {"insns":[{"mnemonic":"mov", "op_str":"eax, dword ptr [eax]"},    {"mnemonic":"ret", "op_str": ""}], "vaddr":5}
+        gadget6 = {"insns":[{"mnemonic":"mov", "op_str":"eax, esp"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":6}
+
+        gadget7 = {"insns":[{"mnemonic":"mov", "op_str":"dword ptr [ebx], ecx"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":7}
+        gadget8 = {"insns":[{"mnemonic":"mov", "op_str":"ecx, dword ptr [ebx]"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":8}
+
+        gadget9 = {"insns":[{"mnemonic":"inc", "op_str":"ebx"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":9}
+
+        gadget10 = {"insns":[{"mnemonic":"xor", "op_str":"ebx, eax"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":10}
+
+        gadget11 = {"insns":[{"mnemonic":"and", "op_str":"ebx, eax"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":11}
+
+        gadget12 = {"insns":[{"mnemonic":"mov", "op_str":"ebx, 0xffffffff"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":12}
+
+        self.gadgets1 = [gadget1, gadget2]
+        self.gadgets2 = [gadget2, gadget3, gadget4]
+        self.gadgets3 = [gadget3, gadget4]
+        self.gadgets4 = [gadget2, gadget3]
+        self.gadgets5 = [gadget9]
+        self.gadgets6 = [gadget4, gadget10]
+        self.gadgets7 = [gadget4, gadget11]
+        self.gadgets8 = [gadget11, gadget12]
+
+    def testConstant(self):
+        self.rop = ROPChain(BinaryStub(), self.gadgets1, False, 2)
+        res = list(self.rop.start({"ebx": Exp.ExpL(32, 1)}))
+        assert len(res) == 1 and res[0] == ["0x2", "0x1"]
+
+        self.rop = ROPChain(BinaryStub(), self.gadgets2, False, 3)
+        res = list(self.rop.start({"ebx": Exp.ExpL(32, 1)}))
+        assert len(res) == 1 and ( res[0] == ["0x2", "0x4", "0x3"] or res[0] == ["0x4", "0x2", "0x3"])
+
+    def testReg(self):
+        self.rop = ROPChain(BinaryStub(), self.gadgets3, False, 2)
+        res = list(self.rop.start({"ebx": Exp("eax")}))
+        assert len(res) == 1 and res[0] == ["0x4", "0x3"]
+
+        self.rop = ROPChain(BinaryStub(), self.gadgets4, False, 2)
+        res = list(self.rop.start({"ebx": Exp(Exp("ebx"), "+", Exp.ExpL(32, 1))}))
+        assert len(res) == 1 and res[0] == ["0x2", "0x3"]
+
+        self.rop = ROPChain(BinaryStub(), self.gadgets5, False, 2)
+        res = list(self.rop.start({"ebx": Exp(Exp("ebx"), "+", Exp.ExpL(32, 1))}))
+        assert len(res) == 1 and res[0] == ["0x9"]
+
+        self.rop = ROPChain(BinaryStub(), self.gadgets6, False, 2)
+        res = list(self.rop.start({"ebx": Exp("eax")}))
+        assert len(res) == 1 and res[0] == ["0x4", "0xa"]
+
+        self.rop = ROPChain(BinaryStub(), self.gadgets7, False, 2)
+        res = list(self.rop.start({"ebx": Exp("eax")}))
+        assert len(res) == 0 
+
+        self.rop = ROPChain(BinaryStub(), self.gadgets8, False, 2)
+        res = list(self.rop.start({"ebx": Exp("eax")}))
+        assert len(res) == 1 and res[0] == ["0xc", "0xb"]
+    '''
+    def testRegs(self):
+        pass
+    def testStack(self):
+        gadgets = [gadget5, gadget6]
         self.rop = ROPChain(BinaryStub(), gadgets, False, 2)
+        res = list(self.rop.start({"ebx": "stack"}))
+        assert len(res) == 1 and res[0].getAddress() == ["0x2", "0x3"]
 
-    def testMultiConds(self):
-        print "Testing with multi regs..............................."
-        res = list(self.rop.Start({"eax": Exp.ExpL(32, 1), "ebx": Exp.ExpL(32, 1)}))
-        for r in res:
-            assert r.getAddress() == ["0x2", "0x3"] or r.getAddress() == ["0x1", "0x3"]
-
-        self.rop.deepth = 4
-        res = list(self.rop.Start({"eax": Exp.ExpL(32, 10), "ebx": Exp.ExpL(32, 1)}))
-        for r in res:
-            print r
-            assert r.getAddress() == ["0x1", "0x3", "0x2"] or r.getAddress() == ["0x2", "0x3", "0x2"]
+    def testMem(self):
+        pass
+    '''
 
 
-    def testOneCond(self):
-        print "Testing with one reg..............................."
-        res = list(self.rop.Start({"ebx": Exp("eax")}))
-        assert len(res) == 1 and res[0].getAddress() == ["0x3"]
-
-        res = list(self.rop.Start({"edx": Exp("ssp")}))
-        assert len(res) == 1 and res[0].getAddress() == ["0x4"]
-
-        # TODO, Mem + regs
-        # res = list(self.rop.Start({"ecx": Exp("ecx", "+", Exp("edx", "*"))}))
-        # assert len(res) == 1 and len(res[0].gadgets) == 1 and res[0].getAddress()[0] == 5
-
-        # res = list(self.rop.Start({"ecx": Exp("ecx", "+", "1")}))
-        # assert len(res) == 1 and len(res[0].gadgets) == 2  and res[0].getAddress() == [4, 5] 
-
-        res = list(self.rop.Start({"ebx": Exp.ExpL(32, "1")}))
-        for r in res:
-            assert r.getAddress() == ["0x2", "0x3"] or r.getAddress() == ["0x1", "0x3"]
-
-class ROPChainTestCase2(unittest.TestCase):
-
-    def setUp(self):
-        gadget7 = {"insns":[{"mnemonic":"pop", "op_str":"eax"},  {"mnemonic":"ret", "op_str":""}], "vaddr":7}
-        gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"ecx, ebx"},  {"mnemonic":"call", "op_str":"eax"}], "vaddr":1}
-
-        gadgets = [gadget1, gadget7]
-        self.rop = ROPChain(BinaryStub(), gadgets, False, 4)
-    
-    def testCOP(self):
-        print "Testing COP gadgets..........................................."
-
-        res = list(self.rop.Start({"ecx": Exp("ebx")}))
-        assert len(res) == 1 and ( res[0].getAddress() == ["0x7", "0x1"])
-
-class ROPChainTestCase3(unittest.TestCase):
-
-    def setUp(self):
-        gadget6 = {"insns":[{"mnemonic":"stc", "op_str":""},      {"mnemonic":"ret", "op_str": ""}], "vaddr":6}
-        gadget7 = {"insns":[{"mnemonic":"pop", "op_str":"eax"},  {"mnemonic":"ret", "op_str":""}], "vaddr":7}
-        gadget9 = {"insns":[{"mnemonic":"cmovb", "op_str":"edx, ecx"},  {"mnemonic":"jmp", "op_str":"eax"}], "vaddr":9}
-
-        gadgets = [gadget6, gadget9, gadget7]
-        self.rop = ROPChain(BinaryStub(), gadgets, False, 3)
-
-    def testJOP(self):
-        print "Testing JOP gadgets..........................................."
-
-        res = list(self.rop.Start({"edx": Exp("ecx")}))
-        assert len(res) == 1 and ( res[0].getAddress() == ["0x7", "0x6", "0x9"] or res[0].getAddress() == ["0x6", "0x7" , "0x9"])
-
-class ROPChainTestCase4(unittest.TestCase):
-
-    def setUp(self):
-        gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"al, 1"},      {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
-        gadget2 = {"insns":[{"mnemonic":"mov", "op_str":"ah, 1"},  {"mnemonic":"ret", "op_str":""}], "vaddr":2}
-        gadget3 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 0"},  {"mnemonic":"ret", "op_str":""}], "vaddr":3}
-
-        gadgets = [gadget1, gadget2, gadget3]
-        self.rop = ROPChain(BinaryStub(), gadgets, False, 2)
-
-    def testSubRegs(self):
-        print "Testing sub regs gadgets..........................................."
-        res = list(self.rop.Start({"eax": Exp.ExpL(32, 1)}))
-        print res[0].getAddress()
-        assert len(res) == 1 and res[0].getAddress() == ["0x3", "0x1"]
-
-        self.rop.deepth = 3
-        res = list(self.rop.Start({"eax": Exp.ExpL(32, 257)}))
-        for r in res:
-            assert (r.getAddress() == ["0x3", "0x1", "0x2"] or r.getAddress() == ["0x3", "0x2", "0x1"]) 
-
-class ROPChainTestCase5(unittest.TestCase):
-    def setUp(self):
-        gadget1 = {"insns":[{"mnemonic":"pop", "op_str":"eax"},      {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
-        gadget2 = {"insns":[{"mnemonic":"pop", "op_str":"ebx"},  {"mnemonic":"ret", "op_str":""}], "vaddr":2}
-        gadget3 = {"insns":[{"mnemonic":"add", "op_str":"eax, ebx"},  {"mnemonic":"ret", "op_str":""}], "vaddr":3}
-        gadget4 = {"insns":[{"mnemonic":"mov", "op_str":"ecx, byte ptr [eax]"},  {"mnemonic":"ret", "op_str":""}], "vaddr":4}
-
-        gadgets = [gadget1, gadget2, gadget3, gadget4]
-        self.rop = ROPChain(BinaryStub(), gadgets, False, 1)
-
-    def testComplexMem(self):
-        print "Testing complex mem location for reg sat..........................................."
-'''
-class ROPChainTestCase6(unittest.TestCase):
-    def setUp(self):
-        gadget1 = {"insns":[{"mnemonic":"lea", "op_str":"ebp, dword ptr [esp + 0xc]"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
-        gadgets = [gadget1]
-        self.parser = ROPParserX86(gadgets, BinaryStub().getArchMode()) 
-        self.formula = self.parser.parse()
-
-    def testDebug(self):
-        for k, v in self.formula[0].regs.items():
-            print k, v
-            print v.showLength(v)
-
-        
 if __name__ == "__main__":
     unittest.main()

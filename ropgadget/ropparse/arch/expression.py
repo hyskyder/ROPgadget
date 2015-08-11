@@ -31,7 +31,7 @@ class Exp:
     defaultLength = 32
     def __init__(self, left, op=None, right=None, condition=None):
         if isinstance(left, unicode) and ( left == u"esp" or left == u"rsp"):
-            self.left = Exp("ssp")
+            self.left = Exp(left)
             self.right = right		
             self.condition = condition			
             self.op = op		
@@ -48,9 +48,7 @@ class Exp:
         
         # default size for constant
         self.length = 0
-        if len(str(left)) == 3 and str(left) == "ssp":
-            self.length = Exp.defaultLength
-        elif len(str(left)) == 3 and "r" in str(left):
+        if len(str(left)) == 3 and "r" in str(left):
             self.length = 64
         elif len(str(left)) == 3 and "e" in str(left):
             self.length = 32
@@ -133,7 +131,7 @@ class Exp:
 
         if self.right is None:
             if self.op is not None and self.op == "*":
-                return len(self.getRegs()) == 1 and self.getRegs()[0] == "ssp"
+                return len(self.getRegs()) == 1 and ( self.getRegs()[0] == "esp" or self.getRegs()[0] == "rsp")
             else:
                 return isinstance(self.left, Exp) and self.left.isControl()
         else:

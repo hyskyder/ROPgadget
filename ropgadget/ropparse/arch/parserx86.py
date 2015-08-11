@@ -85,11 +85,6 @@ class X86:
 	    "adc": [2, ["operand1 = operand1 + operand2 + CF"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
 	    "sub": [2, ["operand1 = operand1 - operand2"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
 	    "sbb": [2, ["operand1 = operand1 - operand2 - CF"], ["OF", "SF", "ZF", "AF", "CF", "PF"]],
-        # FIXME imul need specially atteition
-#	    "imul": [3, [""]],
-#        "mul": [1, []],
-#        "idiv": [1, ["sax = sdx:sax / operand1", "sdx = sdx:sax % operand1"], []],
-#        "div": [1, ["sax = sdx:sax / operand1", "sdx = sdx:sax % operand1"], []],
 
 	    "inc": [1, ["operand1 = operand1 + 1"], ["OF", "SF", "ZF", "AF", "PF"]],
 	    "dec": [1, ["operand1 = operand1 - 1"], ["OF", "SF", "ZF", "AF", "PF"]],
@@ -123,62 +118,11 @@ class X86:
 	    "or": [2, ["operand1 = operand1 | operand2"], ["CF = 0", "OF = 0", "SF", "ZF", "PF"]],
 	    "xor": [2, ["operand1 = operand1 ^ operand2"], ["CF = 0","OF = 0", "SF", "ZF", "PF"]],
 	    "not": [1, ["operand1 = ~ operand1"], []],
-        # shift and rotate
-#        "sar": [2, ["operand1 = operand1 >> operand2"] , ["CF", "OF", "SF", "ZF", "PF"]],
-#        "shr": [2, ["operand1 = operand1 >> operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
-
-#        "sal": [2, ["operand1 = operand1 << operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
-#        "shl": [2, ["operand1 = operand1 << operand2"], ["CF", "OF", "SF", "ZF", "PF"]],
-#        "shrd": [2],
-#        "shld": [2],
-#        "ror": [2],
-#        "rol": [2],
-#        "rcr": [2],
-#        "rcl": [2],
-       # bit and bytes
-#        "bt": [2, [""], ["CF = "]],
-#        "bts": [],
-#        "btr": [],
-#        "btc": [],
-#        "bsf": [],
-#        "bsr": [],
-#        "sete": [1, ["operand1 = ZF == 1 ? 0xff : operand1"], []],
-#        "setne": [1, ["operand1 = ZF == 0 ? 0xff : operand1"], []],
-#        "seta": [1, ["operand1 = CF == 0 & ZF == 0 ? 0xff : operand1"],[]],
-#        "setae": [1, ["operand1 = CF == 0 ? 0xff : operand1"],[]],
-#        "setb": [1, ["operand1 = CF == 1 ? 0xff : operand1"],[]],
-#        "setbe": [1, ["operand1 = ZF == 1 | CF == 1 ? 0xff : operand1"], []],
-#        "setg": [1, ["operand1 = ZF == 0 & SF == OF ? 0xff : operand1"], []],
-#        "setge": [1, ["operand1 = SF == OF ? 0xff : operand1"], []],
-#        "setl": [1, ["operand1 = SF != OF ? 0xff : operand1"], []],
-#        "setle": [1, ["operand1 = ZF == 1 | SF != OF ? 0xff : operand1"], []],
-#        "sets": [1, ["operand1 = SF == 1 ? 0xff : operand1"], []],
-#        "setns": [1, ["operand1 = SF == 0 ? 0xff : operand1"], []],
-#        "seto": [1, ["operand1 = OF == 1 ? 0xff : operand1"], []],
-#        "setno": [1, ["operand1 = OF == 0 ? 0xff : operand1"], []],
-#        "setpe": [1, ["operand1 = PF == 1 ? 0xff : operand1"], []],
-#        "setpo": [1, ["operand1 = PF == 0 ? 0xff : operand1"], []],
         "test": [2, ["temp = operand1 & operand2"], ["OF = 0", "CF = 0", "SF", "ZF", "PF"]],
         # segment
         # others
         "lea": [2, ["operand1 = & operand2"], []],
-        "nop": [0, [], []],
-        # string operation
-#        "movsb": [2, ["operand1 = operand2"], []],
-#        "movsd": [2, ["operand1 = operand2"], []],
-#        "movsw": [2, ["operand1 = operand2"], []],
-#        "cmpsb": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-#        "cmpsw": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-#        "cmpsd": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-#        "scasb": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-#        "scasw": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-#        "scasd": [2, ["temp = operand1 - operand2"], ["CF", "OF", "SF", "ZF", "AF", "PF"]],
-#        "lodsb": [2, ["temp = operand1 = operand2"], []],
-#        "lodsw": [2, ["operand1 = operand2"], []],
-#        "lodsd": [2, ["operand1 = operand2"], []],
-#        "stosb": [2, ["operand1 = operand2"], []],
-#        "stosw": [2, ["operand1 = operand2"], []],
-#        "stosd": [2, ["operand1 = operand2"], []],
+        "nop": [0, [], []]
 }
 class ROPParserX86:
     def __init__(self, gadgets, mode):
@@ -186,31 +130,40 @@ class ROPParserX86:
         self.addrs = dict()
         self.mode = mode
         self.aligned = 0
+        self.undefinedMem = False
         if mode == CS_MODE_32:
             self.regs = X86.regs32 + X86.FLAG
             self.Tregs = X86.Tregs32
             self.aligned = 4
             self.default = 32
+            self.sp = "esp"
+            self.ip = "eip"
         else:
             self.regs = X86.regs64 + X86.FLAG
             self.Tregs = X86.Tregs64
             self.aligned = 8
             self.default = 64
+            self.sp = "rsp"
+            self.ip = "rip"
+
+        for k, v in X86.insn.items():
+            for i, s in enumerate(v[1]):
+                v[1][i] = s.replace("ssp", self.sp)
+            for i, s in enumerate(v[2]):
+                v[2][i] = s.replace("ssp", self.sp)
+            X86.insn.update({k:v})
+
 
     def parse(self):
         formulas = []
         for gadget in self.gadgets:
-            regs = {"ssp": Exp("ssp")}
+            self.undefinedMem = False
+            regs = {self.sp : Exp(self.sp)}
             regs = self.parseInst(regs, gadget["insns"], 0)
-            '''
-            string = "========================="
-            for inst in gadget:
-                string += inst["mnemonic"] + ", " +  inst["op_str"] + "\n"
-            gadget["string"] = string
-            '''
             if len(regs) == 0:
+                # gadget cannot parsed
                 continue
-            formulas.append(Semantic(regs, gadget["vaddr"]))
+            formulas.append(Semantic(regs, gadget["vaddr"], self.undefinedMem))
             self.addrs.update({hex(gadget["vaddr"]).replace("L",""):gadget["insns"]})
         print "================================="
         print "Unique gadgets parsed ", len(formulas)
@@ -218,17 +171,23 @@ class ROPParserX86:
 
 
     def parseInst(self, regs, insts, i):
-        if i == len(insts):
+        if i >= len(insts):
             return regs
-        # all control transfer dst must bewteen low and high addr
+
         prefix = insts[i]["mnemonic"]
         op_str = insts[i]["op_str"].replace("*", " * ")
+
+        if prefix != "lea" and "ptr" in op_str:
+            # gadget read/write to mem location
+            self.undefinedMem = True
+
         if prefix not in X86.insn.keys():
-            # contains not supported ins
+            # unsupported ins
             return {}
+
         ins = X86.insn.get(prefix)
         if prefix in X86.Control:
-            # control transfer ins
+            # control transfer ins, end of gadget
             if prefix in ["ret", "call"]:
                 operand1 = None
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
@@ -238,14 +197,14 @@ class ROPParserX86:
                 else:
                     dst = dst.binding({"operand1":operand1})
                 dst = dst.binding(regs)
-                regs.update({"sip":dst})
-                # only ret inst can modify ssp
+                regs.update({self.ip : dst})
+                # only ret inst modifies stackpointer
                 if prefix == "ret":
-                    ssp = regs["ssp"]
+                    ssp = regs[self.sp]
                     ssp = Exp(ssp, "+", Exp(self.aligned))
                     if operand1 is not None:
                         ssp = Exp(ssp, "+", operand1)
-                    regs.update({"ssp":ssp})
+                    regs.update({ self.sp :ssp})
                 return regs
 
             # handle jmp
@@ -253,13 +212,13 @@ class ROPParserX86:
             dst = Exp.parseExp(ins[2][0].split())
             dst = dst.binding({"operand1":operand1})
             dst = dst.binding(regs)
-            regs.update({"sip": dst})
+            regs.update({self.ip : dst})
             return regs
         else:
 			# computing ins
             operand1 = None
             operand2 = None
-            operands = {"ssp":regs["ssp"]}
+            operands = {self.sp :regs[self.sp]}
             for flag in X86.FLAG:
                 if flag in regs.keys():
                     operands.update({flag:regs[flag]})
@@ -272,11 +231,11 @@ class ROPParserX86:
                 operand2 = Exp.parseOperand(op_str.split(", ")[1], regs, self.Tregs)
                 operands.update({"operand1":operand1})
                 operands.update({"operand2":operand2})
-            # contruct all exps based on the instruction
+            # contruct insn operation
             if len(ins[1]) > 0:
                 if prefix == "lea":
                     reg = op_str.split(", ")[0]
-                    addr = Exp.parseExp(op_str.split("ptr [")[1][:-1].split())
+                    addr = Exp.parseExp(op_str.split("[")[1][:-1].split())
                     addr = addr.binding(regs)
                     regs.update({reg:addr})
                     return self.parseInst(regs, insts, i+1)
@@ -287,25 +246,28 @@ class ROPParserX86:
                     op1v = None
                     op2v = None
                     if op2k in self.Tregs:
+                        # subpart of register
                         temp = Exp.parse(self.Tregs[op2k][1], {op2k:operands["operand1"]})
                         for k, v in temp.items():
                             v.length = Exp.defaultLength
                             op2k = k
                             op2v = v
-                    elif op2k in self.regs or op2k == "ssp":
+                    elif op2k in self.regs:
+                        # register
                         operands["operand1"].length = Exp.defaultLength
                         op2v = operands["operand1"]
                     else:
+                        # mem
                         op2k = str(operands["operand1"])
                         op2v = operands["operand1"]
 
                     if op1k in self.Tregs:
-                        temp = Exp.parse(self.Tregs[op1k][1], {op2k:operands["operand2"]})
+                        temp = Exp.parse(self.Tregs[op1k][1], {op1k:operands["operand2"]})
                         for k, v in temp.items():
                             v.length = Exp.defaultLength
                             op1k = k
                             op1v = v
-                    elif op1k in self.regs or op1k == "ssp":
+                    elif op1k in self.regs:
                         operands["operand2"].length = Exp.defaultLength
                         op1v = operands["operand2"]
                     else:
@@ -317,20 +279,22 @@ class ROPParserX86:
                     return self.parseInst(regs, insts, i+1)
 
                 exps = Exp.parse(ins[1][0], operands)
+
                 for reg, val in exps.items():
-                    if prefix == "xor" and operand1 == operand2:
-                        val = ExpL(val.length, 0)
+                    # handle special case of xor, op1 == op2 clear the register
+                    if prefix == "xor" and op_str.split(", ")[0] == op_str.split(", ")[1]:
+                        val = Exp.ExpL(val.length, 0)
+                    # temp variable, no need to assign
                     if reg == "temp":
-                        # temp variable, no need to assign
                         val.length = max(operand1.length, operand2.length)
                         continue
                     if "*" in reg:
                         # this can only be push inst
                         val.length = Exp.defaultLength
-                        regs.update({"[ " + str(regs["ssp"]) + " ]":val})
+                        regs.update({"[ " + str(regs[self.sp]) + " ]":val})
                         continue
                     dst = Exp.parseOperand(op_str.split(", ")[0], {}, {})
-                    if str(dst) == "ssp" or str(dst) in self.regs:
+                    if str(dst) in self.regs:
                         # general purpose reg
                         val.length = Exp.defaultLength
                         regs.update({str(dst):val})
@@ -346,9 +310,9 @@ class ROPParserX86:
                         # mem
                         regs.update({str(operands["operand1"]):val})
                 if prefix == "push":
-                    regs.update({"ssp":Exp(regs["ssp"], "+", Exp(self.aligned))})
+                    regs.update({self.sp :Exp(regs[self.sp], "+", Exp(self.aligned))})
                 if prefix == "pop":
-                    regs.update({"ssp":Exp(regs["ssp"], "-", Exp(self.aligned))})
+                    regs.update({self.sp :Exp(regs[self.sp], "-", Exp(self.aligned))})
 
             # evaluate flag regs base on exp
             if len(ins[2]) != 0:

@@ -11,53 +11,55 @@ import math
 import time
 import sys
 import os.path
-import cProfile, pstats, StringIO
+import logging
 
 class ROPChain:
     def __init__(self, binary, gadgets, opt, deepth = 0):
         self.binary = binary
-        # all the gadgets store by { reg : { cat : [] } }
-        self.categories = {}
-        self.cop = []
+        # gadgets seperate into [ ROP, COP/JOP ]
+        # ROP and COP/JOP are categories as { reg : { cat : [] } } 
+        self.rop = [{}, {}]
+        # register dependency graph, { reg: { reg : [] } }
+        self.dependency = [{}, {}]
+        # gadgets that should be discarded
         self.aba = []
-        # gadgets writes to mem
-        self.orp = None
-        self.mems = []
-        self.chained = set()
-        self.semantics = []
+        # gadgets that read undefined mem, should be careful
+        self.readMem = {}
+        # gadgets that write to mem { mem: [] }
+        self.writeMem = []
+        # result
+        self.chained = []
+        # hashmap ( addr ==> gadget )
+        self.semantics = {}
+        # search deepth
         self.deepth = deepth
+        # number of gadgets chains before return
         self.default = 5
+        # z3 solver
         self.solver = Solver()
+        # z3 Regs
         self.z3Regs = {}
-        self.optimized = opt
-        self.dup = {}
-        self.pr = cProfile.Profile()
-
-        if os.path.isfile("./addr"):
-            f = open("./addr","r")
-            self.orp = set()
-            for line in f.readlines():
-                self.orp.add(line.split()[0])
-            self.gadgets = []
-            for gadget in gadgets:
-                if hex(gadget["vaddr"])[:-1] in self.orp:
-                    self.gadgets.append(gadget)
-            print "with orp: orignal", len(gadgets), " after:", len(self.gadgets)
-        else:
-            self.gadgets = gadgets
+        self.gadgets = gadgets
+        logging.basicConfig(level=logging.DEBUG)
 
         if self.binary is not None and self.binary.getArch() == CS_ARCH_X86:
             self.parser = ROPParserX86(self.gadgets, self.binary.getArchMode())
-            self.semantics = self.parser.parse()
+            semantics = self.parser.parse()
+            for s in semantics:
+                self.semantics.update({s.getAddress()[0]:s})
             if self.binary.getArchMode() == CS_MODE_32:
                 Exp.defaultLength = 32
                 self.z3Mem = Array('Mem', BitVecSort(32), BitVecSort(8))
+                self.sp = "esp"
+                self.ip = "eip"
                 for reg in X86.regs32:
                     ref = BitVec(reg, 32)
                     self.z3Regs.update({reg:ref})
             else:
                 Exp.defaultLength = 64
                 self.z3Mem = Array('Mem', BitVecSort(64), BitVecSort(8))
+                self.sp = "rsp"
+                self.ip = "rip"
                 for reg in X86.regs64:
                     ref = BitVec(reg, 64)
                     self.z3Regs.update({reg:ref})
@@ -104,12 +106,7 @@ class ROPChain:
 
     def Convert(self, exp):
         if not isinstance(exp.left, Exp):
-            if exp.left == "ssp":
-                if self.binary.getArchMode() == CS_MODE_32:
-                    return self.z3Regs["esp"]
-                else:
-                    return self.z3Regs["rsp"]
-            elif exp.left in self.z3Regs.keys():
+            if exp.left in self.z3Regs.keys():
                 return self.z3Regs[exp.left]
             elif "0x" in str(exp.left):
                 if exp.length == 0:
@@ -289,23 +286,6 @@ class ROPChain:
         for k in targets.keys():
             if k not in regs.keys():
                 return "unsat" 
-            '''
-            if targets[k].getCategory() == 3 and targets[k].getCategory() == 3:
-                exp = self.Compare(regs[k].left, targets[k].left)
-                if is_true(exp):
-                    return "true"
-                self.solver.push()
-                if targets[k].getCategory() != 0:
-                    self.solver.add(ForAll([self.z3Regs[reg] for reg in targets[k].getRegs()], exp))
-                else:
-                    self.solver.add(exp)
-                sat = self.solver.check()
-                self.solver.pop()
-                return sat
-            elif targets[k].getCategory() == 3 or targets[k].getCategory() == 3:
-                return "sat"
-            else:
-            '''
             #print semantic.regs[k]
             try:
                 exp = self.Compare(regs[k], targets[k])
@@ -322,42 +302,7 @@ class ROPChain:
             sat = str(self.solver.check())
             self.solver.pop()
             return sat
-            '''
-            if targets[k].getCategory() == 0:
-                if self.stack and regs[k].getCategory() == 3:
-                    if regs[k].isControl():
-                        # FIXME: should record this mem in case of conflicts
-                        continue
-                elif regs[k].getCategory() >= 3:
-                    pass
-                elif is_true(self.Compare(regs[k], targets[k])):
-                    continue
-                return False
-            elif targets[k].getCategory() == 3:
-
-                return False  
-            else:
-                temp = targets[k].getRegs()
-                for s in temp:
-                    if s not in regs[k].getRegs():
-                        return False
-                if not is_true(self.Compare(regs[k], targets[k])):
-                    return False
-            '''
         return True
-        '''
-        if str(self.solver.check()) == "sat":
-            res = self.solver.model()
-            for r in res:
-                if not str(r) in defined and r != "sip":
-                    self.solver.pop()
-                    return False
-            self.solver.pop()
-            return True
-        else:
-            self.solver.pop()
-            return False
-        '''
 
     def Core(self):
         while True:
@@ -381,78 +326,401 @@ class ROPChain:
                 else:
                     self.printGadget(addr)
                 continue
-            elif string == "quit" or string == "q":
+            elif string == "help":
+                print "usage: "
+                print "  set length <integer>\t\t\tMaximum length of gadgets chain"
+                print "  set number <integer>\t\t\tDesired number of gadgets chain before stop searching"
+                print "  addr <hexaddr>\t\t\tPrint semantic and instructions of gadget at this address"
+                print "  print cop\t\t\tPrint semantic and instructions of all COP/JOP gadgets"
+                print "  print mem\t\t\tPrint semantic and instructions of all gadgets that read/write memory"
+                print "  print <register>\t\t\tPrint semantic and instructions of all gadgets that modify this register"
+                print "  search <register> <expression>\t\t\tSearching gadgets chain that set register to expression"
+                print "  search <register> stack\t\t\tSearching gadgets chains that pop value from stack to this register"
+                print "  search mem <register>\t\t\tSearching gadgets chains that write to memory address of this register"
+                print "  quit \t\t\tQuit"
+                print ""
+                print "examples:"
+                print "  "
+                continue
+            elif string == "quit":
                 break
             elif string.split()[0] == "print" or string.split()[0] == "p":
                 reg = string.split()[1]
-                if reg == "cop":
-                    for gadget in self.cop:
-                        self.printGadgets(gadget.getAddress())
-                        for k, v in gadget.regs.items():
-                            print k, v
-                elif reg == "mem":
-                    for gadget in self.mems:
-                        print (gadget.getAddress())
-                        for k, v in gadget.regs.items():
-                            if k != "sip" and k != "ssp" and k not in self.z3Regs:
-                                print k, " ===> ", v
-                elif len(string.split()) == 3:
-                    cat = int(string.split()[2])
-                    for s in self.categories[reg][cat]:
-                        print (s.getAddress())
-                        print reg, " ===> ", s.regs[reg]
+                continue
+            elif string.split()[0] == "search":
+                regs = {}
+                reg = string.split()[1] 
+                tokens = string.split()[2:]
+                if reg == "mem":
+                    val = tokens[0]
+                elif len(tokens) == 0:
+                    val = None
+                elif len(tokens) == 1 and tokens[0] == "stack":
+                    val = "stack"
                 else:
-                    for k in self.categories[reg]:
-                        for s in self.categories[reg][k]:
-                            print (s.getAddress())
-                            print reg, " ===> ", s.regs[reg]
-                continue
-            elif string.split()[0] == "mem":
-                tokens = string.split(',')[0][1:]
-                mem = Exp.parseExp(tokens)
-                tokens = string.split(',')[1]
-                val = Exp.parseExp(tokens)
-                for gadget in self.mems:
-                    for reg, val in semantic.regs.items():
-                        if reg != "sip" and reg != "ssp" and reg not in self.z3Regs:
-                            if len(reg) == 7:
-                                reg = reg.split()[1]
-                                c = deepcopy(gadget)
-                                if self.Chain([], reg, val, [reg], 6, None, c, 1, []):
-                                    break
-                            else:
-                                break
-                continue
-            regs = {}
-            exps = string.split(';')
-            for exp in exps:
-                tokens = exp.split()
-                reg = tokens.pop(0)
-                val = Exp.parseExp(tokens)
-                if not isinstance(val, Exp):
-                    val = Exp(val)
-                val.length = Exp.defaultLength
+                    val = Exp.parseExp(tokens)
+                    if not isinstance(val, Exp):
+                        val = Exp(val)
+                    val.length = Exp.defaultLength
                 regs.update({reg:val})
-            self.pr.enable()
-            self.Start(regs)
-            self.pr.disable()
-            s = StringIO.StringIO()
-            sortby = 'cumulative'
-            ps = pstats.Stats(self.pr, stream=s).sort_stats(sortby)
-            ps.print_stats()
-            print s.getvalue()
+                self.start(regs)
+            else:
+                print "what are you doing........"
+                continue
+    @timing
+    def start(self, regs):
+        self.chained = []
+        before = []
+        after = []
+        for reg, val in regs.items():
+            if reg == "mem":
+                self.SearchWriteMem(set(), val[0], val[1], before, after, self.chained)
+            elif val == "stack":
+                self.SearchStack(set(), reg, before, after, self.chained)
+            elif val.getCategory() == 0:
+                self.SearchConstant(set(), reg, val.left, before, after, self.chained)
+            elif val.getCategory() == 1:
+                self.SearchReg(set(), reg, self.Convert(val), before, after, self.chained)
+            elif val.getCategory() == 2:
+                self.SearchRegs(set(), reg, val, before, after, self.chained)
+            elif val.getCategory() == 3:
+                self.SearchReadMem(set(), reg, val, before, after, self.chained)
+            else:
+                print "invalid expression"
+                return self.chained
+
+        for each in self.chained:
+            self.printGadgets(each)
+        return self.chained
 
     def printGadgets(self, addrs):
-        print "gadgets chain of len", len(addrs)
         for addr in addrs:
             self.printGadget(addr)
 
     def printGadget(self, addr):
         print addr
         print self.parser.addrs[addr]
+        print self.semantics[addr]
 
-    @timing
-    def Start(self, regs):
+    def CheckSat(self, val1, val2):
+        f1 = self.Convert(val1)
+        self.solver.reset()
+        self.solver.add(f1 == val2)
+        if str(self.solver.check()) == "sat":
+            return True
+        return False
+
+    def FindConstant(self, reserve, reg):
+        number = set()
+        constants = []
+        if reg in self.rop[0].keys():
+            if 0 in self.rop[0][reg].keys():
+                for semantic in self.rop[0][reg][0]:
+                    if self.Overlap(reserve, semantic.regs):
+                        continue
+                    val = semantic.regs[reg]
+                    if int(str(val)) not in number:
+                        number.add(int(str(val)))
+                        constants.append(semantic)
+        return constants
+
+    def SearchStack(self, reserve, reg, before, after, chains):
+        if len(before) + len(after) >= self.deepth:
+            return False
+        for rop in self.rop:
+            if reg in rop.keys():
+                if 3 in rop[reg].keys():
+                    for semantic in rop[reg][3]:
+                        if self.Overlap(reserve, semantic.regs):
+                            continue
+                        if not semantic.regs[self.ip].isControl():
+                            # COP/JOP TODO
+                            pass
+                            '''
+                            reserve.add(reg)
+                            semantic = self.ChainRetGadget(reserve, semantic.regs["sip"], None, semantic, deepth+1)
+                            reserve.remove(reg)
+                            if semantic is None:
+                                continue
+                            '''
+                        if semantic.regs[reg].isControl():
+                            # done
+                            temp = semantic.getAddress()
+                            temp.extend(after)
+                            before.extend(temp)
+                            chains.append(temp)
+                            return len(chains) >= self.default
+                        else:
+                            # map the address to esp,TODO
+                            pass
+
+        if reg in self.dependency[0].keys():
+            for k, v in self.dependency[0].items():
+                for semantic in v:
+                    if self.Overlap(reserve, semantic.regs):
+                        continue
+                    temp = semantic.getAddress()
+                    temp.extend(after)
+                    if self.SearchStack(self, reserve, k, before, after, chains):
+                        return True
+            '''
+            for k, v in self.dependency[1].items():
+                for semantic in v:
+                    if self.Overlap(reserve, semantic.regs):
+                        continue
+            '''
+
+    def SearchConstant(self, reserve, reg, desired, before, after, chains):
+        if len(before) + len(after) >= self.deepth:
+            return False
+        indent = (len(before) + len(after)) * "\t"
+        logging.debug(indent + "constant search: " + str(reg) + " => "+ str(desired))
+        for rop in self.rop:
+            if reg in rop.keys():
+                if 0 in rop[reg].keys():
+                    for semantic in rop[reg][0]:
+                        if self.Overlap(reserve, semantic.regs):
+                            continue
+                        logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
+                        if str(semantic.regs[reg]) == str(desired):
+                            if not semantic.regs[self.ip].isControl():
+                                # COP/JOP gadgets, TODO
+                                continue 
+                                '''
+                                if reg in semantic.regs["sip"].getRegs() or desired in semantic.regs["sip"].getRegs():
+                                    continue
+                                reserve.add(reg)
+                                semantic = self.ChainRetGadget(reserve, semantic.regs["sip"], None, semantic, deepth+1)
+                                reserve.remove(reg)
+                                if semantic is None:
+                                    continue
+                                '''
+                            temp = deepcopy(before)
+                            temp.extend(semantic.getAddress())
+                            temp.extend(after)
+                            chains.append(temp)
+                            logging.debug(indent + reg + " => " + str(desired) + " done " + ", ".join(temp))
+                            if len(chains) >= self.default:
+                                return True
+                if 1 in rop[reg].keys():
+                    for semantic in rop[reg][1]:
+                        if self.Overlap(reserve, semantic.regs):
+                            continue
+                        nreg = semantic.regs[reg].getRegs()[0]
+                        if nreg == self.sp:
+                            continue
+                        if not semantic.regs[self.ip].isControl():
+                            # COP/JOP gadgets, TODO
+                            continue 
+                            '''
+                            if reg in semantic.regs[self.ip].getRegs() or desired in semantic.regs[self.ip].getRegs():
+                                continue
+                            reserve.add(nreg)
+                            semantic = self.ChainRetGadget(reserve, semantic.regs["sip"], None, semantic, deepth+1)
+                            reserve.remove(nreg)
+                            if semantic is None:
+                                continue
+                            '''
+                        if not self.CheckSat(semantic.regs[reg], desired):
+                            logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + " unsat")
+                            continue
+                        res = self.solver.model()
+                        ndesired = res[self.z3Regs[nreg]]
+                        temp = semantic.getAddress()
+                        temp.extend(after)
+                        logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + " sat")
+                        if self.SearchConstant(reserve, nreg, int(str(ndesired)), before, temp, chains):
+                            return True
+
+                if 2 in rop[reg].keys():
+                    for semantic in rop[reg][2]:
+                        continue
+                    regs = semantic.regs[reg].getRegs()
+                    logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + " sat")
+                    constants = []
+                    for i in range(len(regs) - 1):
+                        # set other regs to constant, and search regs[i] to satisfies this
+                        constants.append(self.FindConstant(reserve, regs[i]))
+                        reserve.add(regs[i])
+
+                    temp = semantic.getAddress()
+                    temp.extend(after)
+                    coms = [(self.Convert(semantic.regs[reg]) == desired)]
+                    if self.Combination(reserve, constants, 0, coms, semantic.regs[reg], regs, before, temp, chains):
+                        return True
+
+    def Combination(self, reserve, constants, index, coms, val, regs, before, after, chains):
+        indent = (len(before) + len(after)) * "\t"
+        if index == len(constants):
+            # map regs[j] to new val in z3
+            self.solver.reset()
+            for com in coms:
+                self.solver.add(com)
+            if not str(self.solver.check()) == "sat":
+                logging.debug(indent + " unsat")
+                return False
+            res = self.solver.model()
+            ndesired = res[self.z3Regs[regs[index]]]
+            logging.debug(indent + str(res) + " sat")
+            if self.SearchConstant(reserve, regs[index], int(str(ndesired)), before, after, chains):
+                return True
+            return False
+        if len(constants[index]) == 0:
+            return False
+
+        for constant in constants[index]:
+            before.extend(constant.getAddress())
+            coms.append(self.z3Regs[regs[index]] == self.Convert(constant.regs[regs[index]]))
+            logging.debug(indent + regs[index] + " => " + str(constant.regs[regs[index]]) + " sat")
+            if self.Combination(reserve, constants, index+1, coms, val, regs, before, after, chains):
+                return True
+            before.pop()
+            coms.pop()
+
+    def SearchRegs(self, reserve, reg, desired, before, after, chains):
+        if len(before) + len(after) >= self.deepth:
+            return False
+        
+        for rop in self.dependency:
+            if reg in rop.keys():
+                if 1 in rop[reg].keys():
+                    for semantic in rop[reg][1]:
+                        if self.Overlap(reserve, semantic.regs):
+                            continue
+                        if not semantic.regs[self.ip].isControl():
+                            #TODO
+                            continue 
+
+                if 2 in rop[reg].keys():
+                    for semantic in rop[reg][2]:
+                        if self.Overlap(reserve, semantic.regs):
+                            continue
+                        if not semantic.regs[self.ip].isControl():
+                            #TODO
+                            continue 
+                        if is_true(simplify(desired == self.Convert(semantic.regs[reg]))):
+                            temp = deepcopy(before)
+                            temp.extend(semantic.getAddress())
+                            temp.extend(after)
+                            chains.append(temp)
+                            if len(chains) >= self.default:
+                                return True
+                        else:
+                            regs = semantic.regs[reg].getRegs()
+
+
+    def SearchReg(self, reserve, reg, desired, before, after, chains):
+        if len(before) + len(after) >= self.deepth:
+            return False
+
+        indent = (len(before) + len(after)) * "\t"
+        regs = str(desired).split()
+        for i in regs:
+            if i in self.z3Regs.keys():
+                target = i 
+
+        logging.debug(indent + "reg search: " + str(reg) + " => "+ str(desired) + ", " + target)
+        for rop in self.rop:
+            if reg in rop.keys():
+                if 1 in rop[reg].keys():
+                    for semantic in rop[reg][1]:
+                        logging.debug(indent + reg + " => " + str(semantic.regs[reg]) )
+                        if self.Overlap(reserve, semantic.regs):
+                            continue
+                        if not semantic.regs[self.ip].isControl():
+                            # TODO, COP
+                            continue
+                            '''
+                            if reg in semantic.regs["sip"].getRegs() or desired in semantic.regs["sip"].getRegs():
+                                continue
+                            reserve.add(desired)
+                            semantic = self.ChainRetGadget(reserve, semantic.regs["sip"], None, semantic, deepth+1)
+                            reserve.remove(desired)
+                            if semantic is None:
+                                continue
+                            '''
+                        if is_true(simplify(desired == self.Convert(semantic.regs[reg]))):
+                            temp = deepcopy(before)
+                            temp.extend(semantic.getAddress())
+                            temp.extend(after)
+                            chains.append(temp)
+                            if len(chains) >= self.default:
+                                return True
+                        else:
+                            exp = simplify(desired == self.Convert(semantic.regs[reg]))
+                            ntarget = semantic.regs[reg].getRegs()[0]
+                            ndesired = self.reduct(exp, ntarget)
+                            temp = semantic.getAddress()
+                            temp.extend(after)
+                            logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
+                            if self.SearchReg(reserve, ntarget, ndesired, before, after, chains):
+                                return True
+                if 2 in rop[reg].keys():
+                    for semantic in rop[reg][2]:
+                            if self.Overlap(reserve, semantic.regs):
+                                continue
+                            regs = semantic.regs[reg].getRegs()
+                            if len(regs) > 2:
+                                # TODO, multiple regs 
+                                continue
+                            elif target in regs:
+                                ntarget = regs[0] if target == regs[1] else regs[1]
+                                self.solver.push()
+                                self.solver.add(ForAll(self.z3Regs[target], desired == self.Convert(semantic.regs[reg])))
+                                sat = self.solver.check()
+                                if not str(sat) == "sat":
+                                    continue
+                                ndesired = self.solver.model()[self.z3Regs[ntarget]]
+                                self.solver.pop()
+                                temp = semantic.getAddress()
+                                temp.extend(after)
+                                logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + ", " + ntarget + ": " + str(ndesired))
+                                if self.SearchConstant(reserve, ntarget, ndesired, before, temp, chains):
+                                    return True
+                            else:
+                                temp = semantic.getAddress()
+                                temp.extend(after)
+                                exp = simplify(desired == self.Convert(semantic.regs[reg]))
+                                logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
+                                indent += "\t"
+                                for i in regs:
+                                    for semantic in self.dependency[0][i][target]:
+                                        sexp = substitute(exp, (self.z3Regs[i], semantic.regs[i]))
+                                        ntarget = regs[0] if target == regs[1] else regs[1]
+                                        self.solver.push()
+                                        self.solver.add(ForAll(self.z3Regs[reg], desired == self.Convert(semantic.regs[reg])))
+                                        ndesired = self.solver.model()[self.z3Regs[ntarget]]
+                                        self.solver.pop()
+                                        temp1 = semantic.getAddress()
+                                        temp1.extend(temp)
+                                        if self.SearchConstant(reserve, ntarget, ndesired, before, temp1, chains):
+                                            return True
+
+    def SearchWriteMem(self, reserve, reg, addrs, chains, deepth):
+        for semantic in self.undefinedMem:
+            if self.Overlap(reserve, semantic.regs):
+                continue
+
+            for k, v in semantic.regs.items():
+                if k not in self.z3Regs.keys():
+                    if len(k) != 7:
+                        continue
+                    use = k.split()[1]
+                    if not semantic.regs["sip"].isControl():
+                        if use in semantic.regs["sip"].getRegs() or reg in semantic.regs["sip"].getRegs():
+                            continue
+                        reserve.add(use)
+                        c = self.ChainRetGadget(reserve, semantic.regs["sip"], None, semantic, deepth+1)
+                        reserve.remove(use)
+                        if c is None:
+                            continue
+                    if use == reg:
+                        chains.append(semantic.getAddress())
+                        return True
+                    if self.SearchReg(set(), use, reg, semantic.getAddress(), chains, deepth+1):
+                        return True
+        
+        '''
         self.chained = set()
         self.Chain([], None, None, [], 6, None, None, 0, regs)
         if len(self.chained) <= 1:
@@ -465,6 +733,7 @@ class ROPChain:
                 print k, " ===> ", v
 
         return self.chained
+        '''
 
     def Overlap(self, reserve, regs):
         for reg in regs.keys():
@@ -472,400 +741,103 @@ class ROPChain:
                 return True
         return False
 
-    def Chain(self, reserve, reg, val, targets, cat, prev, nex, deepth, constraints):
-        if reg is None and val is None:
-            if len(constraints) == 0:
-                print "all done"
-                print prev
-                if prev is not None:
-                    self.chained.add(prev)
-                return len(self.chained) >= self.default
-            k = random.choice(constraints.keys())
-            v = constraints.pop(k)
-            print "Now looking for gadget with ", k , " == ", v
-            res = self.Chain(reserve, k, v, [k], 6, prev, None, deepth, constraints)
-            constraints.update({k:v})
-            return res
-        if deepth >= self.deepth:
-            return False 
-        if len(targets) == 0:
-            return False
-        target = targets.pop(0)
-        print "searching for ", reg, " ==> ", val , " throught ", target, " category ", cat, " deepth ", deepth, " limit ", self.deepth
-        if len(targets) != 0:
-            # DFS, only works for regs + regs
-            if target in self.categories.keys()  and 2 in self.categories[target].keys():
-                for semantic in self.categories[target][2]:
-                    if self.Overlap(reserve, semantic.regs):
-                        continue
-                    c = None
-                    if nex is not None:
-                        c = deepcopy(nex)
-                        c.chain(semantic)
-                    else:
-                        c = deepcopy(semantic)
-                    c.chain(prev)
-                    #temp = targets.pop(0)
-                    reserve.append(target)
-                    if self.Chain(reserve, reg, val, targets, cat, prev, c, deepth+1, constraints):
-                        return True
-                    reserve.pop()
-                    targets.insert(0, target)
-            return False
-
-        # checks for gadget that modify mem
-        if cat == -1:
-            if isinstance(target, list):
-                #TODO, for multi regs
-                pass
-            else:
-                for semantic in self.mems:
-                    if self.Overlap(reserve, semantic.regs):
-                        continue
-                    c = deepcopy(nex)
-                    c.chain(semantic)
-                    c.chain(prev)
-                    if target in semantic.regs.keys():
-                        if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c) == "true":
-                            c.regs[reg] = val
-                            reserve.append(reg)
-                            if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
-                                return True
-                            reserve.pop()
-        # checks constant based
-        if cat == 6 or cat == 0:
-            if target in self.categories.keys() and 0 in self.categories[target].keys():
-                for semantic in self.categories[target][0]:
-                    if self.Overlap(reserve, semantic.regs):
-                        continue
-                    c = None
-                    if nex is not None:
-                        c = deepcopy(nex)
-                        c.chain(semantic)
-                    else:
-                        c = deepcopy(semantic)
-                    c.chain(prev)
-                    #print deepth, "checking gadget that set to constant", c.regs[target] 
-                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c) == "true":
-                        c.regs[reg] = val
-                        reserve.append(reg)
-                        if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
-                            return True
-                        reserve.pop()
-        # checks reg based
-        if cat == 6 or cat == 1:
-            if target in self.categories.keys() and 1 in self.categories[target].keys():
-                for semantic in self.categories[target][1]:
-                    if self.Overlap(reserve, semantic.regs):
-                        continue
-                    c = None
-                    if nex is not None:
-                        c = deepcopy(nex)
-                        c.chain(semantic)
-                    else:
-                        c = deepcopy(semantic)
-                    c.chain(prev)
-                    #print deepth, "checking gadget that set to another reg", c.regs[target] 
-                    sat = self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c)
-                    if sat == "true":
-                        c.regs[reg] = val
-                        reserve.append(reg)
-                        if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
-                            return True
-                        reserve.pop()
-                    elif sat == "sat":
-                        if self.Chain(reserve, reg, val, semantic.regs[target].getRegs(), cat, prev, c, deepth+1, constraints):
-                            return True
-
-        # checks regs based if needed
-        if cat == 6 or cat == 2:
-            if target in self.categories.keys()  and 2 in self.categories[target].keys():
-                for semantic in self.categories[target][2]:
-                    if self.Overlap(reserve, semantic.regs):
-                        continue
-                    c = None
-                    if nex is not None:
-                        c = deepcopy(nex)
-                        c.chain(semantic)
-                    else:
-                        c = deepcopy(semantic)
-                    c.chain(prev)
-                    #print "checking gadget that set to regs", c.regs[target], deepth
-                    sat = self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c)
-                    if sat == "true":
-                        c.regs[reg] = val
-                        reserve.append(reg)
-                        if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
-                            return True
-                        reserve.pop()
-                    elif sat == "sat":
-                        if self.Chain(reserve, reg, val, semantic.regs[target].getRegs(), cat, prev, c, deepth+1, constraints):
-                            return True
-
-        # checks mem location 
-        if cat == 3:
-            if target in self.categories.keys() and 3 in self.categories[target].keys():
-                for semantic in self.categories[target][3]:
-                    if self.Overlap(reserve, semantic.regs):
-                        continue
-                    c = None
-                    if nex is not None:
-                        c = deepcopy(nex)
-                        c.chain(semantic)
-                    else:
-                        c = deepcopy(semantic)
-                    c.chain(prev)
-                    if self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c):
-                        c.regs[reg] = val
-                        reserve.append(reg)
-                        if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
-                            return True
-                        reserve.pop()
-                    else:
-                        # either we control the addr of this mem location or we control the value of this mem location
-                        #print "checking gadget that set mem ", c.regs[target], deepth
-                        if len(c.regs[reg].getRegs()) != 0:
-                            r = self.ChainRetGadget(reserve, c.regs[target], prev, c, deepth+1)
-                            if r is not None:
-                                if self.CheckRegsSat({reg:r.regs[reg]}, {reg:val}, r):
-                                    if self.Chain(reserve, None, None, None, 0,  r, None, deepth+1, constraints):
-                                        return True
-                        elif self.Chain(reserve, reg, val,[str(c.regs[reg])], -1, prev, c, deepth+1, constraints):
-                            return True
-
-        # check JOP/COP
-        for semantic in self.cop:
-            if target not in semantic.regs.keys() or reg not in semantic.regs.keys():
-                continue
-            if self.Overlap(reserve, semantic.regs):
-                continue
-            c = None
-            if nex is not None:
-                c = deepcopy(nex)
-                c.chain(semantic)
-            else:
-                c = deepcopy(semantic)
-            c = self.ChainRetGadget(reserve, semantic.regs["sip"], prev, semantic, deepth+1)
-            if c is None:
-                continue
-            #print "checking COP/JOP gadget that set to regs", c.regs[target], deepth
-            sat = self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c)
-            if sat == "true":
-                c.regs[reg] = val
-                reserve.append(reg)
-                if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
-                    return True
-                reserve.pop()
-            elif sat == "sat":
-                if self.Chain(reserve, reg, val, semantic.regs[target].getRegs(), cat, prev, c, deepth+1, constraints):
-                    return True
-
-        # checks condition based if needed
-        if cat == 6 or cat == 5:
-            if target in self.categories.keys()  and 5 in self.categories[target].keys():
-                for semantic in self.categories[target][5]:
-                    if self.Overlap(reserve, semantic.regs):
-                        continue
-                    c = None
-                    if nex is not None:
-                        c = deepcopy(nex)
-                        c.chain(semantic)
-                    else:
-                        c = deepcopy(semantic)
-                    c.chain(prev)
-                    #print "checking gadget that set based on condition", c.regs[target], deepth
-                    sat = self.CheckRegsSat({reg:c.regs[reg]}, {reg:val}, c)
-                    if sat == "true":
-                        c.regs[reg] = val
-                        reserve.append(reg)
-                        if self.Chain(reserve, None, None, None, 0, c, None, deepth+1, constraints):
-                            return True
-                        reserve.pop()
-                    elif sat == "sat":
-                        if self.Chain(reserve, reg, val, semantic.regs[target].getCondition().getRegs(), cat, prev, c, deepth+1, constraints):
-                            return True
-        # TODO checks Mem + Regs
-        targets.insert(0, target)
-        return False
-
-    def AddToCat(self, reg, val, semantic):
-        if reg not in self.categories.keys():
-            self.categories.update({reg:{}})
-            self.dup.update({reg:set()})
-        if self.optimized and str(val) in self.dup[reg]:
-            return
-        self.dup[reg].add(str(val))
-        if val.getCategory() not in self.categories[reg].keys():
-            self.categories[reg].update({val.getCategory():[]})
-        self.categories[reg][val.getCategory()].append(semantic)
-
-    def ChainRetGadget(self, reserve, sip, prev, nex, deepth):
-        # sip must be a mem location, make sure this mem determined only by esp
-        if deepth > self.deepth:
-            return None
-        if not isinstance(sip.left, Exp) or sip.left.getCategory() == 1:
-            # the location is only determined by one reg 
-            reg = str(sip.left)
-            if isinstance(sip.left, Exp):
-                reg = sip.left.getRegs()[0]
-            if reg in self.categories.keys() and 1 in self.categories[reg].keys():
-                for semantic in self.categories[reg][1]:
-                    if semantic.regs[reg].getCategory() == 1 and semantic.regs[reg].getRegs()[0] == "ssp":
-                        c = deepcopy(nex)
-                        c.chain(semantic)
-                        c.chain(prev)
-                        return c
-                        # TODO, we can return after find one perfect ret gadget
-            if reg in self.categories.keys() and 3 in self.categories[reg].keys():
-                for semantic in self.categories[reg][3]:
-                    if semantic.regs[reg].isControl():
-                        c = deepcopy(nex)
-                        c.chain(semantic)
-                        c.chain(prev)
-                        return c
-
-        elif sip.left.getCategory() == 2:
-            regs = sip.left.getRegs()
-            for reg in regs:
-                # one reg is esp, others are constant, TODO
-                pass
-
-        elif sip.left.getCategory() == 3:
-            if sip.left.isControl():
-                # if mem location is from esp
-                nex.chain(prev)
-                return nex
-            else:
-                # otherwise, chain another mem location gadget
-                return self.ChainRetGadget(reserve, sip.left.left, prev, nex, deepth+1)
-        return None 
-
-    def ChainCondGadget(self, targets, nex, deepth):
-        if deepth > self.deepth:
-            return None
-        reg = targets.pop(0)
-        if len(targets) == 0:
-            if reg in self.categories.keys() and 0 in self.categories[reg].keys():
-                for semantic in self.categories[reg][0]:
-                    c = deepcopy(nex)
-                    c.chain(semantic)
-                    if ((c.regs["sip"].getCondition().getCategory() < 3 and is_true(self.Compare(c.regs["sip"].getCondition())))
-                            or c.regs["sip"].getCondition().isControl()):
-                        c.regs.update({"sip":c.regs["sip"].meetCondition()})
-                        return c 
-
-            if reg in self.categories.keys() and 1 in self.categories[reg].keys():
-                for semantic in self.categories[reg][1]:
-                    c = deepcopy(nex)
-                    c.chain(semantic)
-                    if ((c.regs["sip"].getCondition().getCategory() < 3 and is_true(self.Compare(c.regs["sip"].getCondition())))
-                            or c.regs["sip"].getCondition().isControl()):
-                        c.regs.update({"sip":c.regs["sip"].meetCondition()})
-                        return c 
-        else:
-            if reg in self.categories.keys() and 0 in self.categories[reg].keys():
-                for semantic in self.categories[reg][0]:
-                    c = deepcopy(nex)
-                    c.chain(semantic)
-                    return (self.ChainCondGadget(targets, c, deepth+1))
-
-            if reg in self.categories.keys() and 1 in self.categories[reg].keys():
-                for semantic in self.categories[reg][1]:
-                    c = deepcopy(nex)
-                    c.chain(semantic)
-                    return (self.ChainCondGadget(targets, c, deepth+1))
-        targets.append(reg)
-        return None 
+    def addToCat(self, cat, reg, val, semantic):
+        if reg not in cat.keys():
+            cat.update({reg:{}})
+        if val not in cat[reg].keys():
+            cat[reg].update({val:[]})
+        cat[reg][val].append(semantic)
 
     def Category(self):
         cond = []
-        rets = []
-        for semantic in self.semantics:
-            if semantic.regs["sip"].isControl():
-                # return address is somewhere in esp
+        for addr, semantic in self.semantics.items():
+            if semantic.touchUndefinedMem:
                 for reg, val in semantic.regs.items():
-                    if reg != "sip" and reg != "ssp" and reg not in self.z3Regs:
-                        self.mems.append(semantic)
-                        continue
-                    self.AddToCat(reg, val, semantic)
-            else:
-                if semantic.regs["sip"].isCond():
-                    cond.append(semantic)
-                elif semantic.regs["sip"].getCategory() == 0:
-                    self.aba.append(semantic)
-                else:
-                    self.cop.append(semantic)
-        print "gadgets with condition ", len(cond)
-        print "gadgets with fixed return address that must be abandoned ", len(self.aba)
-        print "gadgets with return address not specified ", len(self.cop)
-        print "gadgets can be directly used", len(self.semantics) - len(self.cop) - len(self.aba) 
-        if self.optimized:
-            count = 0
-            for k, v in self.dup.items():
-                count = count + len(v)
-            print "Non-dup gadgets ", count
-        '''
-        for semantic in cond:
-            # fix gadget with condition here
-            # if the mem location can't be control, abandon this
-            if len(semantic.regs["sip"].meetCondition().getRegs()) == 0:
+                    if reg not in self.z3Regs.keys():
+                        # write to mem
+                        self.writeMem.append(semantic)
+                    else:
+                        # read from mem
+                        self.addToCat(self.readMem, reg, val.getCategory(), semantic)
                 continue
-            arr = self.ChainCondGadget(semantic.regs["sip"].getCondition().getRegs(), semantic, 0)
-            if arr is not None:
-                if not arr.regs["sip"].isControl():
-                    self.cop.append(arr)
-                    continue
-                print "for cond gadget fixed", arr.getAddress()
-                for reg, val in arr.regs.items():
-                    if not reg in self.z3Regs:
-                        self.mems.append(arr)
-                        continue
-                    self.AddToCat(reg, val, arr)
-        print "extend cond gadgets done"
-        for semantic in rets:
-            fixed = [semantic]
-            if not semantic.regs["sip"].isControl():
-                jop = self.ChainRetGadget([], semantic.regs["sip"], None, semantic, 0)
-            if jop is not None:
-                for reg, val in jop.regs.items():
-                    if not reg in self.z3Regs:
-                        self.mems.append(jop)
-                        continue
-                    self.AddToCat(reg, val, jop)
-        '''
 
-        # prechain
-        '''
-        if self.optimized:
-            print "prechaining with deepth = ", self.deepth
-            for i in range(self.deepth):
-                for reg1 in self.categories.keys():
-                    # replace all regs that can be mapped to constant or reg
-                    for t1 in [ 0, 1 ]:
-                        if t1 not in self.categories[reg1].keys():
-                            continue
-                        for semantic in self.categories[reg1][t1]:
-                            temp = []
-                            for reg2 in self.categories.keys():
-                                if reg1 == reg2:
-                                    continue
-                                for t2 in [1, 2, 3]:
-                                    if t2 in self.categories[reg2].keys():
-                                        for s in self.categories[reg2][t2]:
-                                            if reg1 not in s.regs[reg2].getRegs():
-                                                continue
-                                            c = deepcopy(s)
-                                            c.chain(semantic)
-                                            temp.append(c)
-                            print semantic, len(temp)
-                            for s in temp:
-                                self.AddToCat(reg1, s.regs[reg1], s)
-        '''
-        # category
-        print "Category as follows:"
-        for reg in self.categories.keys():
-            for k in self.categories[reg]:
-                print reg, "\t======>\t", k , " with ", len(self.categories[reg][k])
-                for s in self.categories[reg][k]:
-                    pass
-                    #print reg, "==>", s.regs[reg]
+            logging.debug(str(addr) + str(semantic.regs[self.ip]))
+            if semantic.regs[self.ip].getCategory() == 0:
+                # constant return address, discard
+                self.aba.append(semantic)
+                continue
+            elif not semantic.regs[self.ip].isControl():
+                # COP/JOP gadgets
+                for reg, val in semantic.regs.items():
+                    self.addToCat(self.rop[1], reg, val.getCategory(), semantic)
+                    # build register dependency graph
+                    '''
+                    if val.getCategory() == 1 and self.checkDependency(reg, val.getRegs()[0], val):
+                        self.addToCat(self.dependency[1], reg, val.getRegs()[0], semantic)
+                    elif val.getCategory() == 2:
+                        for target in val.getRegs():
+                            if self.checkDependency(reg, target, val):
+                                self.addToCat(self.dependency[0], reg, target, semantic)
+                    '''
+                continue
+            elif semantic.regs[self.ip].isCond():
+                # conditional jmp 
+                cond.append(semantic)
+                continue
+            else:
+                # ROP gadgets
+                for reg, val in semantic.regs.items():
+                    # build register dependency graph
+                    self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
+                    logging.debug("category: " + reg + " => " + str(val.getCategory()))
+                    if val.getCategory() == 1 and self.checkDependency(reg, val.getRegs()[0], val):
+                        logging.debug("register dep: " + str(reg) + " => " + str(val))
+                        self.addToCat(self.dependency[0], reg, val.getRegs()[0], semantic)
+                    elif val.getCategory() == 2:
+                        for target in val.getRegs():
+                            if self.checkDependency(reg, target, val):
+                                self.addToCat(self.dependency[1], reg, target, semantic)
+
+    def checkDependency(self, reg, target, val):
+        # return True if there is register dependency from reg to target register 
+        # Ex eax = ebx + 1  eax ==> ebx, eax = ebx & 1 there is no such dependency
+        #    eax = ebx - ecx, eax depends on ebx True, eax depends on ecx True
+        #    eax = ebx ^ ecx, eax depends on ebx True, eax depends on ecx True
+        #    eax = ebx & ecx, eax depends on ebx False, eax depends on ecx False 
+        if len(reg) == 2 or len(target) == 2:
+            return False
+        if val.getCategory() == 1:
+            exp = self.Convert(val)
+
+            exp1 = substitute(exp, (self.z3Regs[target], self.z3Regs[reg]))
+            exp2 = substitute(exp, (self.z3Regs[target], -self.z3Regs[reg]))
+
+            res1 = simplify(exp1 == self.z3Regs[reg])
+            res2 = simplify(exp2 == self.z3Regs[reg])
+            if is_true(res1) or is_false(res1) or is_true(res2) or is_false(res2):
+                return True
+            return False
+        else:
+            exp = self.Convert(val)
+            self.solver.push()
+            self.solver.add(ForAll(self.z3Regs[target], exp == self.z3Regs[target]))
+            sat = self.solver.check()
+            if str(sat) == "sat":
+                ndesired = self.solver.model()
+                logging.debug("register dep: " + str(reg) + " => " + str(target) + ", " + str(val) + str(ndesired))
+                self.solver.pop()
+                return True
+            else:
+                self.solver.pop()
+                return False
+
+    def reduct(self, exp, target):
+        childrens = exp.children()
+        rexp = childrens[1]
+        lexp = childrens[0]
+        for s in lexp.children():
+            if not str(s).contains(target):
+                rexp = rexp - s
+        logging.debug("reduct: " + str(target) + ", "+ str(exp) + " => " + str(rexp))
+        return rexp
+
