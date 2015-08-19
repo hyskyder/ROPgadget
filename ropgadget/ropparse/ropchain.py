@@ -5,6 +5,7 @@ from arch.semantic import Semantic
 from arch.expression import Exp
 from capstone import *
 from copy import deepcopy
+from timeout import timeout
 from z3 import *
 import random
 import math
@@ -281,29 +282,6 @@ class ROPChain:
                 count = count + 1
         return count
 
-    # check whether a set of regs is sat to the targets
-    def CheckRegsSat(self, regs, targets, semantic):
-        for k in targets.keys():
-            if k not in regs.keys():
-                return "unsat" 
-            #print semantic.regs[k]
-            try:
-                exp = self.Compare(regs[k], targets[k])
-            except:
-                print regs[k].showLength(regs[k])
-                self.printGadgets(semantic.getAddress())
-                return "unsat"
-            if is_true(exp):
-                return "true"
-            if targets[k].getCategory() != 0:
-                return "sat"
-            self.solver.push()
-            self.solver.add(exp)
-            sat = str(self.solver.check())
-            self.solver.pop()
-            return sat
-        return True
-
     def Core(self):
         while True:
             print "================================================\n"
@@ -336,7 +314,7 @@ class ROPChain:
                 print "  print <register>\t\t\tPrint semantic and instructions of all gadgets that modify this register"
                 print "  search <register> <expression>\t\t\tSearching gadgets chain that set register to expression"
                 print "  search <register> stack\t\t\tSearching gadgets chains that pop value from stack to this register"
-                print "  search mem <register>\t\t\tSearching gadgets chains that write to memory address of this register"
+                print "  search mem <address> <register>\t\t\tSearching gadgets chains that write to memory address with this register"
                 print "  quit \t\t\tQuit"
                 print ""
                 print "examples:"
@@ -382,7 +360,7 @@ class ROPChain:
             elif val.getCategory() == 1:
                 self.SearchReg(set(), reg, self.Convert(val), before, after, self.chained)
             elif val.getCategory() == 2:
-                self.SearchRegs(set(), reg, val, before, after, self.chained)
+                self.SearchRegs(set(), reg, self.Convert(val), before, after, self.chained)
             elif val.getCategory() == 3:
                 self.SearchReadMem(set(), reg, val, before, after, self.chained)
             else:
@@ -402,14 +380,6 @@ class ROPChain:
         print self.parser.addrs[addr]
         print self.semantics[addr]
 
-    def CheckSat(self, val1, val2):
-        f1 = self.Convert(val1)
-        self.solver.reset()
-        self.solver.add(f1 == val2)
-        if str(self.solver.check()) == "sat":
-            return True
-        return False
-
     def FindConstant(self, reserve, reg):
         number = set()
         constants = []
@@ -427,6 +397,8 @@ class ROPChain:
     def SearchStack(self, reserve, reg, before, after, chains):
         if len(before) + len(after) >= self.deepth:
             return False
+        indent = (len(before) + len(after)) * "\t"
+        logging.debug(indent + "stack search: " + str(reg) )
         for rop in self.rop:
             if reg in rop.keys():
                 if 3 in rop[reg].keys():
@@ -435,7 +407,7 @@ class ROPChain:
                             continue
                         if not semantic.regs[self.ip].isControl():
                             # COP/JOP TODO
-                            pass
+                            continue 
                             '''
                             reserve.add(reg)
                             semantic = self.ChainRetGadget(reserve, semantic.regs["sip"], None, semantic, deepth+1)
@@ -443,25 +415,70 @@ class ROPChain:
                             if semantic is None:
                                 continue
                             '''
-                        if semantic.regs[reg].isControl():
-                            # done
-                            temp = semantic.getAddress()
-                            temp.extend(after)
-                            before.extend(temp)
-                            chains.append(temp)
-                            return len(chains) >= self.default
-                        else:
-                            # map the address to esp,TODO
-                            pass
+                        logging.debug(indent + "stack search done " + str(semantic.regs[reg]) )
+                        temp = semantic.getAddress()
+                        temp.extend(after)
+                        before.extend(temp)
+                        chains.append(temp)
+                        return len(chains) >= self.default
 
         if reg in self.dependency[0].keys():
-            for k, v in self.dependency[0].items():
+            for k, v in self.dependency[0][reg].items():
+                for semantic in v:
+                    if self.Overlap(reserve, semantic.regs):
+                        continue
+
+        if reg in self.readMem.keys():
+            if 3 in self.readMem[reg].keys():
+                for semantic in self.readMem[reg][3]:
+                    if self.Overlap(reserve, semantic.regs):
+                        continue
+                    if not semantic.regs[self.ip].isControl():
+                        # COP/JOP TODO
+                        continue 
+                        '''
+                        reserve.add(reg)
+                        semantic = self.ChainRetGadget(reserve, semantic.regs["sip"], None, semantic, deepth+1)
+                        reserve.remove(reg)
+                        if semantic is None:
+                            continue
+                        '''
+                    if semantic.regs[reg].isControl():
+                        # done
+                        logging.debug(indent + "stack search done " + str(semantic.regs[reg]) )
+                        temp = deepcopy(before)
+                        temp.extend(semantic.getAddress())
+                        temp.extend(after)
+                        chains.append(temp)
+                        return len(chains) >= self.default
+                    else:
+                        # map the address to esp
+                        logging.debug(indent + "stack search address: " + str(semantic.regs[reg]) )
+                        regs = semantic.regs[reg].getRegs()
+                        if len(regs) > 1:
+                            # TODO, multi regs
+                            continue
+                        temp = semantic.getAddress()
+                        temp.extend(after)
+                        if reg in self.dependency[0].keys() and self.sp in self.dependency[0][reg].keys():
+                            for semantic in self.dependency[0][reg][self.sp]:
+                                if self.Overlap(reserve, semantic.regs):
+                                    continue
+                                temp1 = deepcopy(before)
+                                temp1.extend(semantic.getAddress())
+                                temp1.extend(temp)
+                                chains.append(temp1)
+                                return len(chains) >= self.default
+
+        if reg in self.dependency[0].keys():
+            for k, v in self.dependency[0][reg].items():
                 for semantic in v:
                     if self.Overlap(reserve, semantic.regs):
                         continue
                     temp = semantic.getAddress()
                     temp.extend(after)
-                    if self.SearchStack(self, reserve, k, before, after, chains):
+                    logging.debug(indent + reg + " => " + k + ", " + str(semantic.regs[reg]))
+                    if self.SearchStack(reserve, k, before, temp, chains):
                         return True
             '''
             for k, v in self.dependency[1].items():
@@ -521,13 +538,17 @@ class ROPChain:
                             if semantic is None:
                                 continue
                             '''
-                        if not self.CheckSat(semantic.regs[reg], desired):
+                        self.solver.push()
+                        self.solver.add(desired == self.Convert(semantic.regs[reg]))
+                        if not str(self.solver.check()) == "sat":
                             logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + " unsat")
+                            self.solver.pop()
                             continue
                         res = self.solver.model()
                         ndesired = res[self.z3Regs[nreg]]
                         temp = semantic.getAddress()
                         temp.extend(after)
+                        self.solver.pop()
                         logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + " sat")
                         if self.SearchConstant(reserve, nreg, int(str(ndesired)), before, temp, chains):
                             return True
@@ -538,15 +559,16 @@ class ROPChain:
                     regs = semantic.regs[reg].getRegs()
                     logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + " sat")
                     constants = []
+                    nreserve = deepcopy(reserve)
                     for i in range(len(regs) - 1):
                         # set other regs to constant, and search regs[i] to satisfies this
                         constants.append(self.FindConstant(reserve, regs[i]))
-                        reserve.add(regs[i])
+                        nreserve.add(regs[i])
 
                     temp = semantic.getAddress()
                     temp.extend(after)
                     coms = [(self.Convert(semantic.regs[reg]) == desired)]
-                    if self.Combination(reserve, constants, 0, coms, semantic.regs[reg], regs, before, temp, chains):
+                    if self.Combination(nreserve, constants, 0, coms, semantic.regs[reg], regs, before, temp, chains):
                         return True
 
     def Combination(self, reserve, constants, index, coms, val, regs, before, after, chains):
@@ -577,26 +599,37 @@ class ROPChain:
             before.pop()
             coms.pop()
 
+    # For now, this method is designed for two registers expression
     def SearchRegs(self, reserve, reg, desired, before, after, chains):
         if len(before) + len(after) >= self.deepth:
             return False
+        indent = (len(before) + len(after)) * "\t"
+        logging.debug(indent + "regs search: " + str(reg) + " => "+ str(desired) )
         
-        for rop in self.dependency:
+        for rop in self.rop:
             if reg in rop.keys():
                 if 1 in rop[reg].keys():
                     for semantic in rop[reg][1]:
                         if self.Overlap(reserve, semantic.regs):
                             continue
                         if not semantic.regs[self.ip].isControl():
-                            #TODO
+                            #TODO, COP/JOP
                             continue 
+                        exp = simplify(desired == self.Convert(semantic.regs[reg]))
+                        ntarget = semantic.regs[reg].getRegs()[0]
+                        ndesired = self.reduce(self.Convert(semantic.regs[reg]), desired, ntarget)
+                        temp = semantic.getAddress()
+                        temp.extend(after)
+                        logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
+                        if self.SearchRegs(reserve, ntarget, ndesired, before, temp, chains):
+                            return True
 
                 if 2 in rop[reg].keys():
                     for semantic in rop[reg][2]:
                         if self.Overlap(reserve, semantic.regs):
                             continue
                         if not semantic.regs[self.ip].isControl():
-                            #TODO
+                            #TODO, COP/JOP
                             continue 
                         if is_true(simplify(desired == self.Convert(semantic.regs[reg]))):
                             temp = deepcopy(before)
@@ -606,7 +639,47 @@ class ROPChain:
                             if len(chains) >= self.default:
                                 return True
                         else:
-                            regs = semantic.regs[reg].getRegs()
+                            vregs = self.getRegs(desired)
+                            kregs = semantic.regs[reg].getRegs()
+                            logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
+                            if len(kregs) > 2:
+                                continue
+                            # eliminate one of regs to constant
+                            exp = self.Convert(semantic.regs[reg])
+                            for k in kregs:
+                                for s in self.FindConstant(reserve, k):
+                                    logging.debug(indent + "\t" + k + " => " + str(s.regs[k]))
+                                    ntarget = kregs[0] if k == kregs[1] else kregs[1]
+                                    nexp = substitute(exp, (self.z3Regs[k], self.Convert(s.regs[k])))
+                                    ndesired = self.reduce(nexp, desired, ntarget)
+                                    tempb = deepcopy(before)
+                                    tempb.extend(s.getAddress())
+                                    tempa = semantic.getAddress()
+                                    tempa.extend(after)
+                                    logging.debug(indent + "\t" + k + " => " + str(s.regs[k]) + ", " + ntarget + " == "+ str(ndesired))
+                                    if self.SearchRegs(reserve, ntarget, ndesired, tempb, tempa, chains):
+                                        return True
+                            # based on the reg dep 
+                            for k in vregs:
+                                for dep in self.dependency:
+                                    if kregs[0] not in dep.keys() or k not in dep[kregs[0]].keys():
+                                        continue
+                                    for s in dep[kregs[0]][k]:
+                                        ntarget = kregs[1]
+                                        logging.debug(indent + "\t" + kregs[0] + " => " + str(s.regs[kregs[0]]))
+                                        left = substitute(exp, (self.z3Regs[kregs[0]], BitVecVal(0, Exp.defaultLength)))
+                                        right = substitute(exp, (self.z3Regs[ntarget], BitVecVal(0, Exp.defaultLength)))
+                                        right = substitute(right, (self.z3Regs[kregs[0]], self.Convert(s.regs[kregs[0]])))
+                                        ndesired = self.reduce(left, desired - right, ntarget)
+                                        logging.debug(indent + "\t"+ kregs[0] + " => " + str(s.regs[kregs[0]]) + ", " + ntarget + " == "+ str(ndesired))
+                                        tempb = deepcopy(before)
+                                        tempb.extend(s.getAddress())
+                                        tempa = semantic.getAddress()
+                                        tempa.extend(after)
+                                        if self.SearchRegs(reserve, ntarget, ndesired, tempb, tempa, chains):
+                                            return True
+
+        return False
 
 
     def SearchReg(self, reserve, reg, desired, before, after, chains):
@@ -614,12 +687,9 @@ class ROPChain:
             return False
 
         indent = (len(before) + len(after)) * "\t"
-        regs = str(desired).split()
-        for i in regs:
-            if i in self.z3Regs.keys():
-                target = i 
+        logging.debug(indent + "reg search: " + str(reg) + " => "+ str(desired) + ", " )
+        target = self.getRegs(desired)[0] 
 
-        logging.debug(indent + "reg search: " + str(reg) + " => "+ str(desired) + ", " + target)
         for rop in self.rop:
             if reg in rop.keys():
                 if 1 in rop[reg].keys():
@@ -647,93 +717,72 @@ class ROPChain:
                             if len(chains) >= self.default:
                                 return True
                         else:
-                            exp = simplify(desired == self.Convert(semantic.regs[reg]))
                             ntarget = semantic.regs[reg].getRegs()[0]
-                            ndesired = self.reduct(exp, ntarget)
+                            ndesired = self.reduce(self.Convert(semantic.regs[reg]), desired, ntarget)
                             temp = semantic.getAddress()
                             temp.extend(after)
                             logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
-                            if self.SearchReg(reserve, ntarget, ndesired, before, after, chains):
+                            if self.SearchReg(reserve, ntarget, ndesired, before, temp, chains):
                                 return True
                 if 2 in rop[reg].keys():
                     for semantic in rop[reg][2]:
-                            if self.Overlap(reserve, semantic.regs):
-                                continue
-                            regs = semantic.regs[reg].getRegs()
-                            if len(regs) > 2:
-                                # TODO, multiple regs 
-                                continue
-                            elif target in regs:
-                                ntarget = regs[0] if target == regs[1] else regs[1]
-                                self.solver.push()
-                                self.solver.add(ForAll(self.z3Regs[target], desired == self.Convert(semantic.regs[reg])))
-                                sat = self.solver.check()
-                                if not str(sat) == "sat":
+                        if self.Overlap(reserve, semantic.regs):
+                            continue
+                        regs = semantic.regs[reg].getRegs()
+                        if len(regs) > 2:
+                            # TODO, multiple regs 
+                            continue
+                        self.solver.push()
+                        self.solver.add(ForAll(self.z3Regs[target], desired == self.Convert(semantic.regs[reg])))
+                        sat = self.solver.check()
+                        if str(sat) == "sat":
+                            # eliminate the other register by set it to constant
+                            ntarget = regs[0] if target == regs[1] else regs[1]
+                            ndesired = self.solver.model()[self.z3Regs[ntarget]]
+                            self.solver.pop()
+                            temp = semantic.getAddress()
+                            temp.extend(after)
+                            logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + ", " + ntarget + ": " + str(ndesired))
+                            if self.SearchConstant(reserve, ntarget, ndesired, before, temp, chains):
+                                return True
+                            # eliminate the other register by minus itself
+                            ndesired = self.reduce(self.Convert(semantic.regs[reg]), desired, target)
+                            temp = semantic.getAddress()
+                            temp.extend(after)
+                            logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + ", " + target + ": " + str(ndesired))
+                            if self.SearchRegs(reserve, target, ndesired, before, temp, chains):
+                                return True
+                        else:
+                            self.solver.pop()
+                            temp = semantic.getAddress()
+                            temp.extend(after)
+                            exp = simplify(desired == self.Convert(semantic.regs[reg]))
+                            logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
+                            for i in regs:
+                                if not i in self.dependency[0].keys() or not target in self.dependency[0][i].keys():
                                     continue
-                                ndesired = self.solver.model()[self.z3Regs[ntarget]]
-                                self.solver.pop()
-                                temp = semantic.getAddress()
-                                temp.extend(after)
-                                logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + ", " + ntarget + ": " + str(ndesired))
-                                if self.SearchConstant(reserve, ntarget, ndesired, before, temp, chains):
-                                    return True
-                            else:
-                                temp = semantic.getAddress()
-                                temp.extend(after)
-                                exp = simplify(desired == self.Convert(semantic.regs[reg]))
-                                logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
-                                indent += "\t"
-                                for i in regs:
-                                    for semantic in self.dependency[0][i][target]:
-                                        sexp = substitute(exp, (self.z3Regs[i], semantic.regs[i]))
-                                        ntarget = regs[0] if target == regs[1] else regs[1]
-                                        self.solver.push()
-                                        self.solver.add(ForAll(self.z3Regs[reg], desired == self.Convert(semantic.regs[reg])))
-                                        ndesired = self.solver.model()[self.z3Regs[ntarget]]
-                                        self.solver.pop()
-                                        temp1 = semantic.getAddress()
-                                        temp1.extend(temp)
-                                        if self.SearchConstant(reserve, ntarget, ndesired, before, temp1, chains):
-                                            return True
+                                for semantic in self.dependency[0][i][target]:
+                                    sexp = substitute(exp, (self.z3Regs[i], semantic.regs[i]))
+                                    ntarget = regs[0] if target == regs[1] else regs[1]
+                                    self.solver.push()
+                                    self.solver.add(ForAll(self.z3Regs[reg], desired == self.Convert(semantic.regs[reg])))
+                                    ndesired = self.solver.model()[self.z3Regs[ntarget]]
+                                    self.solver.pop()
+                                    temp1 = semantic.getAddress()
+                                    temp1.extend(temp)
+                                    if self.SearchConstant(reserve, ntarget, ndesired, before, temp1, chains):
+                                        return True
+        return False
 
-    def SearchWriteMem(self, reserve, reg, addrs, chains, deepth):
-        for semantic in self.undefinedMem:
+    def SearchWriteMem(self, reserve, addr, reg, addrs, chains, deepth):
+        for semantic in self.writeMem:
             if self.Overlap(reserve, semantic.regs):
                 continue
 
             for k, v in semantic.regs.items():
                 if k not in self.z3Regs.keys():
-                    if len(k) != 7:
-                        continue
-                    use = k.split()[1]
-                    if not semantic.regs["sip"].isControl():
-                        if use in semantic.regs["sip"].getRegs() or reg in semantic.regs["sip"].getRegs():
-                            continue
-                        reserve.add(use)
-                        c = self.ChainRetGadget(reserve, semantic.regs["sip"], None, semantic, deepth+1)
-                        reserve.remove(use)
-                        if c is None:
-                            continue
-                    if use == reg:
-                        chains.append(semantic.getAddress())
-                        return True
-                    if self.SearchReg(set(), use, reg, semantic.getAddress(), chains, deepth+1):
-                        return True
-        
-        '''
-        self.chained = set()
-        self.Chain([], None, None, [], 6, None, None, 0, regs)
-        if len(self.chained) <= 1:
-            print  len(self.chained), "unique gadget found"
-        else:
-            print  len(self.chained), "unique gadgets found"
-        for s in self.chained:
-            self.printGadgets(s.getAddress())
-            for k, v in s.regs.items():
-                print k, " ===> ", v
-
-        return self.chained
-        '''
+                    # TODO
+                    pass
 
     def Overlap(self, reserve, regs):
         for reg in regs.keys():
@@ -753,12 +802,14 @@ class ROPChain:
         for addr, semantic in self.semantics.items():
             if semantic.touchUndefinedMem:
                 for reg, val in semantic.regs.items():
-                    if reg not in self.z3Regs.keys():
-                        # write to mem
-                        self.writeMem.append(semantic)
-                    else:
+                    if reg in self.z3Regs.keys() and reg not in ["eip", "rip", "esp", "rsp"] and val.getCategory() == 3:
                         # read from mem
+                        logging.debug("category, readMem: " + reg + " => " + str(val.getCategory()))
                         self.addToCat(self.readMem, reg, val.getCategory(), semantic)
+                    elif reg not in self.z3Regs.keys():
+                        # write to mem
+                        logging.debug("category, writeMem: " + reg + " => " + str(val.getCategory()))
+                        self.writeMem.append(semantic)
                 continue
 
             logging.debug(str(addr) + str(semantic.regs[self.ip]))
@@ -768,10 +819,10 @@ class ROPChain:
                 continue
             elif not semantic.regs[self.ip].isControl():
                 # COP/JOP gadgets
+                '''
                 for reg, val in semantic.regs.items():
                     self.addToCat(self.rop[1], reg, val.getCategory(), semantic)
                     # build register dependency graph
-                    '''
                     if val.getCategory() == 1 and self.checkDependency(reg, val.getRegs()[0], val):
                         self.addToCat(self.dependency[1], reg, val.getRegs()[0], semantic)
                     elif val.getCategory() == 2:
@@ -788,16 +839,27 @@ class ROPChain:
                 # ROP gadgets
                 for reg, val in semantic.regs.items():
                     # build register dependency graph
-                    self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
                     logging.debug("category: " + reg + " => " + str(val.getCategory()))
-                    if val.getCategory() == 1 and self.checkDependency(reg, val.getRegs()[0], val):
-                        logging.debug("register dep: " + str(reg) + " => " + str(val))
-                        self.addToCat(self.dependency[0], reg, val.getRegs()[0], semantic)
-                    elif val.getCategory() == 2:
-                        for target in val.getRegs():
-                            if self.checkDependency(reg, target, val):
-                                self.addToCat(self.dependency[1], reg, target, semantic)
+                    try:
+                        if val.getCategory() in [0, 3]:
+                            self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
+                        elif val.getCategory() == 1 and self.checkDependency(reg, val.getRegs()[0], val):
+                            logging.debug("register dep: " + str(reg) + " => " + str(val))
+                            self.addToCat(self.dependency[0], reg, val.getRegs()[0], semantic)
+                            self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
+                        elif val.getCategory() == 2:
+                            dep = False
+                            logging.debug("registers dep: " + str(reg) + " => " + str(val) )
+                            for target in val.getRegs():
+                                if self.checkDependency(reg, target, val):
+                                    self.addToCat(self.dependency[1], reg, target, semantic)
+                                    dep = True
+                            if dep:
+                                self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
+                    except Exception, exc:
+                        print exc
 
+    @timeout(5)
     def checkDependency(self, reg, target, val):
         # return True if there is register dependency from reg to target register 
         # Ex eax = ebx + 1  eax ==> ebx, eax = ebx & 1 there is no such dependency
@@ -818,26 +880,45 @@ class ROPChain:
                 return True
             return False
         else:
+            print "start"
             exp = self.Convert(val)
             self.solver.push()
-            self.solver.add(ForAll(self.z3Regs[target], exp == self.z3Regs[target]))
+            self.solver.add(ForAll(self.z3Regs[target], Or(exp == self.z3Regs[target], exp == -self.z3Regs[target])))
             sat = self.solver.check()
+            self.solver.pop()
+            print "end"
             if str(sat) == "sat":
-                ndesired = self.solver.model()
-                logging.debug("register dep: " + str(reg) + " => " + str(target) + ", " + str(val) + str(ndesired))
-                self.solver.pop()
                 return True
             else:
-                self.solver.pop()
                 return False
 
-    def reduct(self, exp, target):
-        childrens = exp.children()
-        rexp = childrens[1]
-        lexp = childrens[0]
-        for s in lexp.children():
-            if not str(s).contains(target):
-                rexp = rexp - s
-        logging.debug("reduct: " + str(target) + ", "+ str(exp) + " => " + str(rexp))
-        return rexp
 
+    def reduce(self, left, right, target):
+        # reduce the expression
+        # Ex. eax' + ebx == eax   ==>  eax' == eax - ebx
+        left = simplify(left) 
+        ret = right
+        sign = True
+        for i in left.children():
+            print i
+            if len(i.children()) != 0 and target in str(i):
+                sign = False
+            elif str(i) != target:
+                ret = ret - i
+        logging.debug("reduct: " + str(left) + " == " + str(right) + ", "+ str(target) + " => " + str(simplify(ret)) + str(sign))
+        return simplify(ret) if sign else simplify( -1 * ret )
+
+
+    def getRegs(self, exp):
+        regs = []
+        exp = simplify(exp)
+        if len(exp.children()) == 0:
+            return [str(exp)]
+        for i in exp.children():
+            if len(i.children()) > 1:
+                for j in i.children():
+                    if str(j) in self.z3Regs.keys():
+                        regs.append(str(j))
+            elif str(i) in self.z3Regs.keys():
+                regs.append(str(i))
+        return regs

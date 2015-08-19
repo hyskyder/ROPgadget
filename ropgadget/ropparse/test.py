@@ -224,6 +224,12 @@ class ROPChainTestCase1(unittest.TestCase):
 
         gadget12 = {"insns":[{"mnemonic":"mov", "op_str":"ebx, 0xffffffff"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":12}
 
+        gadget13 = {"insns":[{"mnemonic":"pop", "op_str":"eax"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":13}
+
+        gadget14 = {"insns":[{"mnemonic":"add", "op_str":"eax, ebx"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":14}
+        gadget15 = {"insns":[{"mnemonic":"sub", "op_str":"eax, ebx"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":15}
+        gadget16 = {"insns":[{"mnemonic":"add", "op_str":"ebx, ecx"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":16}
+
         self.gadgets1 = [gadget1, gadget2]
         self.gadgets2 = [gadget2, gadget3, gadget4]
         self.gadgets3 = [gadget3, gadget4]
@@ -232,6 +238,13 @@ class ROPChainTestCase1(unittest.TestCase):
         self.gadgets6 = [gadget4, gadget10]
         self.gadgets7 = [gadget4, gadget11]
         self.gadgets8 = [gadget11, gadget12]
+        self.gadgets9 = [gadget5, gadget6]
+        self.gadgets10 = [gadget13]
+        self.gadgets11 = [gadget1, gadget13]
+        self.gadgets12 = [gadget14]
+        self.gadgets13 = [gadget14, gadget15, gadget16]
+        self.gadgets14 = [gadget1, gadget14]
+        self.gadgets15 = [gadget3, gadget15]
 
     def testConstant(self):
         self.rop = ROPChain(BinaryStub(), self.gadgets1, False, 2)
@@ -240,7 +253,7 @@ class ROPChainTestCase1(unittest.TestCase):
 
         self.rop = ROPChain(BinaryStub(), self.gadgets2, False, 3)
         res = list(self.rop.start({"ebx": Exp.ExpL(32, 1)}))
-        assert len(res) == 1 and ( res[0] == ["0x2", "0x4", "0x3"] or res[0] == ["0x4", "0x2", "0x3"])
+        assert len(res) == 1 and res[0] in [["0x2", "0x4", "0x3"], ["0x4", "0x2", "0x3"]]
 
     def testReg(self):
         self.rop = ROPChain(BinaryStub(), self.gadgets3, False, 2)
@@ -266,18 +279,41 @@ class ROPChainTestCase1(unittest.TestCase):
         self.rop = ROPChain(BinaryStub(), self.gadgets8, False, 2)
         res = list(self.rop.start({"ebx": Exp("eax")}))
         assert len(res) == 1 and res[0] == ["0xc", "0xb"]
-    '''
-    def testRegs(self):
-        pass
+
+        # FIXME
+        self.rop = ROPChain(BinaryStub(), self.gadgets15, False, 2)
+        res = list(self.rop.start({"ebx": Exp("eax")}))
+        assert len(res) == 1 and res[0] == ["0xf", "0x3"]
+
     def testStack(self):
-        gadgets = [gadget5, gadget6]
-        self.rop = ROPChain(BinaryStub(), gadgets, False, 2)
+        self.rop = ROPChain(BinaryStub(), self.gadgets9, False, 2)
+        res = list(self.rop.start({"eax": "stack"}))
+        assert len(res) == 1 and res[0] == ["0x6", "0x5"]
+
+
+        self.rop = ROPChain(BinaryStub(), self.gadgets10, False, 2)
+        res = list(self.rop.start({"eax": "stack"}))
+        assert len(res) == 1 and res[0] == ["0xd"]
+
+        self.rop = ROPChain(BinaryStub(), self.gadgets11, False, 2)
         res = list(self.rop.start({"ebx": "stack"}))
-        assert len(res) == 1 and res[0].getAddress() == ["0x2", "0x3"]
+        assert len(res) == 1 and res[0] == ["0xd", "0x1"]
+
+    def testRegs(self):
+        self.rop = ROPChain(BinaryStub(), self.gadgets12, False, 2)
+        res = list(self.rop.start({"eax": Exp(Exp("ebx"), '+', Exp("eax"))}))
+        assert len(res) == 1 and res[0] == ["0xe"]
+
+        self.rop = ROPChain(BinaryStub(), self.gadgets13, False, 3)
+        res = list(self.rop.start({"eax": Exp(Exp("eax"), '+', Exp("ecx"))}))
+        assert len(res) == 1 and res[0] == ["0xf", "0x10", "0xe"]
+
+        self.rop = ROPChain(BinaryStub(), self.gadgets14, False, 2)
+        res = list(self.rop.start({"ebx": Exp(Exp("ebx"), '+', Exp("eax"))}))
+        assert len(res) == 1 and res[0] == ["0xe", "0x1"]
 
     def testMem(self):
         pass
-    '''
 
 
 if __name__ == "__main__":

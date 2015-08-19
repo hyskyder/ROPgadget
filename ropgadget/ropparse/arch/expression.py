@@ -30,7 +30,7 @@ class Exp:
     binOp = {"*":1, "%":1, "/":1, "+":2, "-":2, ">>":3, "<<":3, "<":4, "<=":4, ">":4, ">=":4, "==":5, "!=":5, "&":6, "^":7, "|":8, "&&":9, "||":10, "?":11, "$":11, "#":11, "=":12}
     defaultLength = 32
     def __init__(self, left, op=None, right=None, condition=None):
-        if isinstance(left, unicode) and ( left == u"esp" or left == u"rsp"):
+        if isinstance(left, unicode) and ( left == u"esp" or left == u"rsp") and op is not None:
             self.left = Exp(left)
             self.right = right		
             self.condition = condition			
@@ -181,26 +181,10 @@ class Exp:
 
     def getRegs(self):
         regs = set()
-        if self.left == None:
-            pass
-        elif isinstance(self.left, Exp):
-            regs.update(self.left.getRegs())
-        elif not self.isInt(self.left):
-            regs.add(self.left)
-
-        if self.right == None:
-            pass
-        elif isinstance(self.right, Exp):
-            regs.update(self.right.getRegs())
-        elif not self.isInt(self.right):
-            regs.add(self.right)
-
-        if self.condition== None:
-            pass
-        elif isinstance(self.condition, Exp):
-            regs.update(self.condition.getRegs())
-        elif not self.isInt(self.condition):
-            regs.add(self.condition)
+        s = str(self).split()
+        for reg in s:
+            if u"r" in reg or (u"e" in reg and "0x" not in reg)  or u"F" in reg:
+                regs.add(reg)
         return list(regs)
     
     def isConstant(self):
