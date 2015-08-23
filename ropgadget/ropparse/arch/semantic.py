@@ -53,7 +53,7 @@ class Semantic:
         return deepcopy(self.addrs)
 
     def __str__(self):
-        string = "length:" + str(self.deepth) + "\n"
+        string = ""
         for i in range(len(self.addrs)):
             string += (self.addrs[i]) + "\n" 
 

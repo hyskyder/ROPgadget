@@ -22,6 +22,7 @@ class ExpTestCase(unittest.TestCase):
         assert Exp("eax").getCategory() == 1
         assert Exp(Exp("eax"), "+", Exp("ebx")).getCategory() == 2
         assert Exp(Exp("1"),"*").getCategory() == 3
+        assert Exp(Exp(Exp("esp"), "+", 1),"*").getCategory() == 3
         assert Exp(Exp(Exp("eax"),"*"), "+", Exp("ebx")).getCategory() == 4
         assert Exp("1","condition", Exp("eax"), Exp("ebx")).getCategory() == 5
         operand1 = Exp.parseOperand("byte ptr [0x15]", {}, {})
@@ -129,17 +130,16 @@ class ExpTestCase(unittest.TestCase):
 
 class ParserX86TestCase1(unittest.TestCase):
     def setUp(self):
-        gadget1 = {"insns": [{"mnemonic":"adc", "op_str":"al, 0x41"} , {"mnemonic":"xor", "op_str":"eax, eax"}, {"mnemonic":"adc", "op_str":"al, -2"}, {"mnemonic":"jbe", "op_str":"0x123123"}], "vaddr":1 }
-        gadget2 = {"insns":[{"mnemonic":"cmove", "op_str":"ebx, eax"}], "vaddr":2}
-        gadget3 = {"insns":[{"mnemonic":"add", "op_str":"eax, ebx"},  {"mnemonic":"ret", "op_str":""}], "vaddr":3}
-        gadget4 = {"insns":[{"mnemonic":"adc", "op_str":"al, 0x41"}], "vaddr":4}
-        gadget5 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 0x123123"}, {"mnemonic":"ret", "op_str":"4"}], "vaddr":5}
-        gadget6 = {"insns":[{"mnemonic":"cmp", "op_str":"eax, 2"}, {"mnemonic":"jle", "op_str":"0x123123"}], "vaddr":6}
-        gadget7 = {"insns":[{"mnemonic":"ja", "op_str":"0x123123"}], "vaddr":7}
-        gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5, gadget6, gadget7]
+        gadget1 = {"insns":[{'mnemonic': u'mov', 'op_str': u'esi, eax', 'vaddr': 135030012L}, {'mnemonic': u'mov', 'op_str': u'eax, esi', 'vaddr': 135030014L}, {'mnemonic': u'pop', 'op_str': u'esi', 'vaddr': 135030016L}, {'mnemonic': u'pop', 'op_str': u'edi', 'vaddr': 135030017L}, {'mnemonic': u'pop', 'op_str': u'ebp', 'vaddr': 135030018L}, {'mnemonic': u'ret', 'op_str': u'', 'vaddr': 135030019L}], "vaddr":1}
+        gadgets = [gadget1]
         self.parser = ROPParserX86(gadgets, BinaryStub().getArchMode()) 
         self.formula = self.parser.parse()
         self.rop = ROPChain(BinaryStub(), [], False, 2)
+
+    def testParse(self):
+        for k, v in self.formula[0].regs.items():
+            print k, v
+        assert str(self.formula[0].regs["eax"]) == "eax" 
 
 class ParserX86TestCase2(unittest.TestCase):
     def setUp(self):
@@ -314,7 +314,6 @@ class ROPChainTestCase1(unittest.TestCase):
 
     def testMem(self):
         pass
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -183,7 +183,7 @@ class Exp:
         regs = set()
         s = str(self).split()
         for reg in s:
-            if u"r" in reg or (u"e" in reg and "0x" not in reg)  or u"F" in reg:
+            if u"s" in reg or u"r" in reg or (u"e" in reg and "0x" not in reg)  or u"F" in reg:
                 regs.add(reg)
         return list(regs)
     
@@ -230,7 +230,7 @@ class Exp:
         if string is None:
             return True 
         try:
-            if isinstance(string, str) and "0x" in string:
+            if (isinstance(string, str) or isinstance(string, unicode))and u"0x" in string:
                 int(string, 16)
             else:
                 int(string)
@@ -272,7 +272,7 @@ class Exp:
                 )
 
     def binding(self, mapping):
-        if ( self.getCategory() == 3 and str(self) in mapping.keys() ) or ( isinstance(self.left, str) and self.left in mapping.keys()):
+        if ( self.getCategory() == 3 and str(self) in mapping.keys() ) or (not isinstance(self.left, Exp) and self.left in mapping.keys()):
             exp = deepcopy(mapping[str(self)])
             exp.length = max(self.length, mapping[str(self)].length)
             return exp

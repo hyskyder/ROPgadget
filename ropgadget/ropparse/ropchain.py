@@ -5,7 +5,6 @@ from arch.semantic import Semantic
 from arch.expression import Exp
 from capstone import *
 from copy import deepcopy
-from timeout import timeout
 from z3 import *
 import random
 import math
@@ -37,7 +36,7 @@ class ROPChain:
         # number of gadgets chains before return
         self.default = 5
         # z3 solver
-        self.solver = Solver()
+        self.solver = None
         # z3 Regs
         self.z3Regs = {}
         self.gadgets = gadgets
@@ -74,7 +73,7 @@ class ROPChain:
             time1 = time.time()
             ret = f(*args)
             time2 = time.time()
-            print '%s function took %0.3f s' % (f.func_name, (time2-time1)*1.0)
+            print 'Search took %0.3f s' % ((time2-time1)*1.0)
             return ret
         return wrap
 
@@ -285,7 +284,7 @@ class ROPChain:
     def Core(self):
         while True:
             print "================================================\n"
-            string = raw_input("Please enter command or specify the status of registers:")
+            string = raw_input("Please enter command (help for usage):")
             if string.split()[0] == "set":
                 if string.split()[1] == "length":
                     self.deepth = int(string.split()[2])
@@ -309,13 +308,13 @@ class ROPChain:
                 print "  set length <integer>\t\t\tMaximum length of gadgets chain"
                 print "  set number <integer>\t\t\tDesired number of gadgets chain before stop searching"
                 print "  addr <hexaddr>\t\t\tPrint semantic and instructions of gadget at this address"
-                print "  print cop\t\t\tPrint semantic and instructions of all COP/JOP gadgets"
-                print "  print mem\t\t\tPrint semantic and instructions of all gadgets that read/write memory"
+                print "  print cop\t\t\t\tPrint semantic and instructions of all COP/JOP gadgets"
+                print "  print mem\t\t\t\tPrint semantic and instructions of all gadgets that read/write memory"
                 print "  print <register>\t\t\tPrint semantic and instructions of all gadgets that modify this register"
-                print "  search <register> <expression>\t\t\tSearching gadgets chain that set register to expression"
-                print "  search <register> stack\t\t\tSearching gadgets chains that pop value from stack to this register"
-                print "  search mem <address> <register>\t\t\tSearching gadgets chains that write to memory address with this register"
-                print "  quit \t\t\tQuit"
+                print "  search <register> <expression>\tSearching gadgets chain that set register to expression"
+                print "  search <register> stack\t\tSearching gadgets chains that pop value from stack to this register"
+                print "  search mem <address> <register>\tSearching gadgets chains that write to memory address with this register"
+                print "  quit \t\t\t\t\tQuit"
                 print ""
                 print "examples:"
                 print "  "
@@ -324,7 +323,16 @@ class ROPChain:
                 break
             elif string.split()[0] == "print" or string.split()[0] == "p":
                 reg = string.split()[1]
-                continue
+                if reg == "mem":
+                    continue
+                elif reg == "cop":
+                    continue
+                else:
+                    if reg in self.rop[0].keys():
+                        for cat in self.rop[0][reg].keys():
+                            for s in self.rop[0][reg][cat]:
+                                print s.getAddress()[0], reg, " => ", str(s.regs[reg])
+
             elif string.split()[0] == "search":
                 regs = {}
                 reg = string.split()[1] 
@@ -366,8 +374,14 @@ class ROPChain:
             else:
                 print "invalid expression"
                 return self.chained
+        print "--------------------------------------"
+        if len(self.chained) < 2:
+            print len(self.chained) ," gadget chain found"
+        else:
+            print len(self.chained) ," gadget chains found"
 
-        for each in self.chained:
+        for i, each in enumerate(self.chained):
+            print "gadget chain number ", i, ":"
             self.printGadgets(each)
         return self.chained
 
@@ -389,7 +403,11 @@ class ROPChain:
                     if self.Overlap(reserve, semantic.regs):
                         continue
                     val = semantic.regs[reg]
-                    if int(str(val)) not in number:
+                    if "0x" in str(val):
+                        val = int(str(val), 16)
+                    else:
+                        val = int(str(val))
+                    if val not in number:
                         number.add(int(str(val)))
                         constants.append(semantic)
         return constants
@@ -450,7 +468,8 @@ class ROPChain:
                         temp.extend(semantic.getAddress())
                         temp.extend(after)
                         chains.append(temp)
-                        return len(chains) >= self.default
+                        if len(chains) >= self.default:
+                            return True
                     else:
                         # map the address to esp
                         logging.debug(indent + "stack search address: " + str(semantic.regs[reg]) )
@@ -468,7 +487,8 @@ class ROPChain:
                                 temp1.extend(semantic.getAddress())
                                 temp1.extend(temp)
                                 chains.append(temp1)
-                                return len(chains) >= self.default
+                                if len(chains) >= self.default:
+                                    return True
 
         if reg in self.dependency[0].keys():
             for k, v in self.dependency[0][reg].items():
@@ -519,6 +539,8 @@ class ROPChain:
                             logging.debug(indent + reg + " => " + str(desired) + " done " + ", ".join(temp))
                             if len(chains) >= self.default:
                                 return True
+                if len(before) + len(after) > self.deepth:
+                    continue
                 if 1 in rop[reg].keys():
                     for semantic in rop[reg][1]:
                         if self.Overlap(reserve, semantic.regs):
@@ -538,25 +560,27 @@ class ROPChain:
                             if semantic is None:
                                 continue
                             '''
-                        self.solver.push()
+                        self.solver = Solver()
                         self.solver.add(desired == self.Convert(semantic.regs[reg]))
                         if not str(self.solver.check()) == "sat":
                             logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + " unsat")
-                            self.solver.pop()
                             continue
                         res = self.solver.model()
                         ndesired = res[self.z3Regs[nreg]]
                         temp = semantic.getAddress()
                         temp.extend(after)
-                        self.solver.pop()
                         logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + " sat")
                         if self.SearchConstant(reserve, nreg, int(str(ndesired)), before, temp, chains):
                             return True
 
+                if len(before) + len(after) > self.deepth:
+                    continue
                 if 2 in rop[reg].keys():
                     for semantic in rop[reg][2]:
                         continue
                     regs = semantic.regs[reg].getRegs()
+                    if len(before) + len(after) + len(regs) >= self.deepth:
+                        continue
                     logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + " sat")
                     constants = []
                     nreserve = deepcopy(reserve)
@@ -575,7 +599,7 @@ class ROPChain:
         indent = (len(before) + len(after)) * "\t"
         if index == len(constants):
             # map regs[j] to new val in z3
-            self.solver.reset()
+            self.solver = Solver()
             for com in coms:
                 self.solver.add(com)
             if not str(self.solver.check()) == "sat":
@@ -618,6 +642,8 @@ class ROPChain:
                         exp = simplify(desired == self.Convert(semantic.regs[reg]))
                         ntarget = semantic.regs[reg].getRegs()[0]
                         ndesired = self.reduce(self.Convert(semantic.regs[reg]), desired, ntarget)
+                        if ndesired is None:
+                            continue
                         temp = semantic.getAddress()
                         temp.extend(after)
                         logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
@@ -641,6 +667,8 @@ class ROPChain:
                         else:
                             vregs = self.getRegs(desired)
                             kregs = semantic.regs[reg].getRegs()
+                            if len(before) + len(after) + 1 >= self.deepth:
+                                continue
                             logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
                             if len(kregs) > 2:
                                 continue
@@ -652,6 +680,8 @@ class ROPChain:
                                     ntarget = kregs[0] if k == kregs[1] else kregs[1]
                                     nexp = substitute(exp, (self.z3Regs[k], self.Convert(s.regs[k])))
                                     ndesired = self.reduce(nexp, desired, ntarget)
+                                    if ndesired is None:
+                                        continue
                                     tempb = deepcopy(before)
                                     tempb.extend(s.getAddress())
                                     tempa = semantic.getAddress()
@@ -671,6 +701,8 @@ class ROPChain:
                                         right = substitute(exp, (self.z3Regs[ntarget], BitVecVal(0, Exp.defaultLength)))
                                         right = substitute(right, (self.z3Regs[kregs[0]], self.Convert(s.regs[kregs[0]])))
                                         ndesired = self.reduce(left, desired - right, ntarget)
+                                        if ndesired is None:
+                                            continue
                                         logging.debug(indent + "\t"+ kregs[0] + " => " + str(s.regs[kregs[0]]) + ", " + ntarget + " == "+ str(ndesired))
                                         tempb = deepcopy(before)
                                         tempb.extend(s.getAddress())
@@ -719,6 +751,8 @@ class ROPChain:
                         else:
                             ntarget = semantic.regs[reg].getRegs()[0]
                             ndesired = self.reduce(self.Convert(semantic.regs[reg]), desired, ntarget)
+                            if ndesired is None:
+                                continue
                             temp = semantic.getAddress()
                             temp.extend(after)
                             logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
@@ -732,14 +766,16 @@ class ROPChain:
                         if len(regs) > 2:
                             # TODO, multiple regs 
                             continue
-                        self.solver.push()
+                        self.solver = Solver()
+                        self.solver.set("soft_timeout", 1000)
                         self.solver.add(ForAll(self.z3Regs[target], desired == self.Convert(semantic.regs[reg])))
                         sat = self.solver.check()
                         if str(sat) == "sat":
+                            if len(before) + len(after) + len(regs) - 1 >= self.deepth:
+                                continue
                             # eliminate the other register by set it to constant
                             ntarget = regs[0] if target == regs[1] else regs[1]
                             ndesired = self.solver.model()[self.z3Regs[ntarget]]
-                            self.solver.pop()
                             temp = semantic.getAddress()
                             temp.extend(after)
                             logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + ", " + ntarget + ": " + str(ndesired))
@@ -747,13 +783,16 @@ class ROPChain:
                                 return True
                             # eliminate the other register by minus itself
                             ndesired = self.reduce(self.Convert(semantic.regs[reg]), desired, target)
+                            if ndesired is None:
+                                continue
                             temp = semantic.getAddress()
                             temp.extend(after)
                             logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + ", " + target + ": " + str(ndesired))
                             if self.SearchRegs(reserve, target, ndesired, before, temp, chains):
                                 return True
                         else:
-                            self.solver.pop()
+                            if len(before) + len(after) + len(regs) >= self.deepth:
+                                continue
                             temp = semantic.getAddress()
                             temp.extend(after)
                             exp = simplify(desired == self.Convert(semantic.regs[reg]))
@@ -764,10 +803,10 @@ class ROPChain:
                                 for semantic in self.dependency[0][i][target]:
                                     sexp = substitute(exp, (self.z3Regs[i], semantic.regs[i]))
                                     ntarget = regs[0] if target == regs[1] else regs[1]
-                                    self.solver.push()
+                                    self.solver = Solver()
+                                    self.solver.set("soft_timeout", 1000)
                                     self.solver.add(ForAll(self.z3Regs[reg], desired == self.Convert(semantic.regs[reg])))
                                     ndesired = self.solver.model()[self.z3Regs[ntarget]]
-                                    self.solver.pop()
                                     temp1 = semantic.getAddress()
                                     temp1.extend(temp)
                                     if self.SearchConstant(reserve, ntarget, ndesired, before, temp1, chains):
@@ -804,15 +843,14 @@ class ROPChain:
                 for reg, val in semantic.regs.items():
                     if reg in self.z3Regs.keys() and reg not in ["eip", "rip", "esp", "rsp"] and val.getCategory() == 3:
                         # read from mem
-                        logging.debug("category, readMem: " + reg + " => " + str(val.getCategory()))
+                        #logging.debug("category, readMem: " + reg + " => " + str(val.getCategory()))
                         self.addToCat(self.readMem, reg, val.getCategory(), semantic)
                     elif reg not in self.z3Regs.keys():
                         # write to mem
-                        logging.debug("category, writeMem: " + reg + " => " + str(val.getCategory()))
+                        #logging.debug("category, writeMem: " + reg + " => " + str(val.getCategory()))
                         self.writeMem.append(semantic)
                 continue
 
-            logging.debug(str(addr) + str(semantic.regs[self.ip]))
             if semantic.regs[self.ip].getCategory() == 0:
                 # constant return address, discard
                 self.aba.append(semantic)
@@ -838,28 +876,27 @@ class ROPChain:
             else:
                 # ROP gadgets
                 for reg, val in semantic.regs.items():
+                    if reg not in self.z3Regs.keys():
+                        continue
                     # build register dependency graph
-                    logging.debug("category: " + reg + " => " + str(val.getCategory()))
-                    try:
-                        if val.getCategory() in [0, 3]:
-                            self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
-                        elif val.getCategory() == 1 and self.checkDependency(reg, val.getRegs()[0], val):
-                            logging.debug("register dep: " + str(reg) + " => " + str(val))
-                            self.addToCat(self.dependency[0], reg, val.getRegs()[0], semantic)
-                            self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
-                        elif val.getCategory() == 2:
-                            dep = False
+                    #logging.debug("category: " + reg + " => " + str(val) )
+                    if val.getCategory() in [0, 3]:
+                        self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
+                    elif val.getCategory() == 1 and self.checkDependency(reg, val.getRegs()[0], val):
+                        #logging.debug("register dep: " + str(reg) + " => " + str(val))
+                        self.addToCat(self.dependency[0], reg, val.getRegs()[0], semantic)
+                        self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
+                    elif val.getCategory() == 2:
+                        dep = True
+                        for target in val.getRegs():
+                            if self.checkDependency(reg, target, val):
+                                self.addToCat(self.dependency[1], reg, target, semantic)
+                            else:
+                                dep = False
+                        if dep:
                             logging.debug("registers dep: " + str(reg) + " => " + str(val) )
-                            for target in val.getRegs():
-                                if self.checkDependency(reg, target, val):
-                                    self.addToCat(self.dependency[1], reg, target, semantic)
-                                    dep = True
-                            if dep:
-                                self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
-                    except Exception, exc:
-                        print exc
+                            self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
 
-    @timeout(5)
     def checkDependency(self, reg, target, val):
         # return True if there is register dependency from reg to target register 
         # Ex eax = ebx + 1  eax ==> ebx, eax = ebx & 1 there is no such dependency
@@ -880,32 +917,35 @@ class ROPChain:
                 return True
             return False
         else:
-            print "start"
             exp = self.Convert(val)
-            self.solver.push()
-            self.solver.add(ForAll(self.z3Regs[target], Or(exp == self.z3Regs[target], exp == -self.z3Regs[target])))
+            self.solver = Solver()
+            self.solver.set("soft_timeout", 1000)
+            self.solver.add(ForAll(self.z3Regs[target], exp == self.z3Regs[target]))
             sat = self.solver.check()
-            self.solver.pop()
-            print "end"
             if str(sat) == "sat":
                 return True
-            else:
-                return False
+            self.solver = Solver()
+            self.solver.set("soft_timeout", 1000)
+            self.solver.add(ForAll(self.z3Regs[target], exp == -self.z3Regs[target]))
+            sat = self.solver.check()
+            return str(sat) == "sat" 
 
 
     def reduce(self, left, right, target):
         # reduce the expression
         # Ex. eax' + ebx == eax   ==>  eax' == eax - ebx
-        left = simplify(left) 
-        ret = right
-        sign = True
-        for i in left.children():
-            print i
-            if len(i.children()) != 0 and target in str(i):
-                sign = False
-            elif str(i) != target:
-                ret = ret - i
-        logging.debug("reduct: " + str(left) + " == " + str(right) + ", "+ str(target) + " => " + str(simplify(ret)) + str(sign))
+        try:
+            left = simplify(left) 
+            ret = right
+            sign = True
+            for i in left.children():
+                if len(i.children()) != 0 and target in str(i):
+                    sign = False
+                elif str(i) != target:
+                    ret = ret - i
+            #logging.debug("reduct: " + str(left) + " == " + str(right) + ", "+ str(target) + " => " + str(simplify(ret)) + str(sign))
+        except Z3Exception:
+            return None
         return simplify(ret) if sign else simplify( -1 * ret )
 
 

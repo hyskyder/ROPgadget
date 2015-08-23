@@ -237,6 +237,7 @@ class ROPParserX86:
                     reg = op_str.split(", ")[0]
                     addr = Exp.parseExp(op_str.split("[")[1][:-1].split())
                     addr = addr.binding(regs)
+                    addr.length = Exp.defaultLength
                     regs.update({reg:addr})
                     return self.parseInst(regs, insts, i+1)
 
