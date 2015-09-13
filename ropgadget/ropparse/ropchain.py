@@ -31,6 +31,8 @@ class ROPChain:
         self.chained = []
         # hashmap ( addr ==> gadget )
         self.semantics = {}
+        # reserved register
+        self.reserve = set()
         # search deepth
         self.deepth = deepth
         # number of gadgets chains before return
@@ -314,10 +316,14 @@ class ROPChain:
                 print "  search <register> <expression>\tSearching gadgets chain that set register to expression"
                 print "  search <register> stack\t\tSearching gadgets chains that pop value from stack to this register"
                 print "  search mem <address> <register>\tSearching gadgets chains that write to memory address with this register"
+                print "  reserve <register> <register>\t\tReserve registers for searching next time (reset automatically after each search)"
                 print "  quit \t\t\t\t\tQuit"
                 print ""
                 print "examples:"
                 print "  "
+                continue
+            elif string.split()[0] == "reserve":
+                self.reserve = set(string.split()[1:])
                 continue
             elif string == "quit":
                 break
@@ -338,7 +344,7 @@ class ROPChain:
                 reg = string.split()[1] 
                 tokens = string.split()[2:]
                 if reg == "mem":
-                    val = tokens[0]
+                    val = tokens
                 elif len(tokens) == 0:
                     val = None
                 elif len(tokens) == 1 and tokens[0] == "stack":
@@ -350,6 +356,7 @@ class ROPChain:
                     val.length = Exp.defaultLength
                 regs.update({reg:val})
                 self.start(regs)
+                self.reserve.clear()
             else:
                 print "what are you doing........"
                 continue
@@ -360,17 +367,17 @@ class ROPChain:
         after = []
         for reg, val in regs.items():
             if reg == "mem":
-                self.SearchWriteMem(set(), val[0], val[1], before, after, self.chained)
+                self.SearchWriteMem(self.reserve, val[0], val[1], before, after, self.chained)
             elif val == "stack":
-                self.SearchStack(set(), reg, before, after, self.chained)
+                self.SearchStack(self.reserve, reg, before, after, self.chained)
             elif val.getCategory() == 0:
-                self.SearchConstant(set(), reg, val.left, before, after, self.chained)
+                self.SearchConstant(self.reserve, reg, val.left, before, after, self.chained)
             elif val.getCategory() == 1:
-                self.SearchReg(set(), reg, self.Convert(val), before, after, self.chained)
+                self.SearchReg(self.reserve, reg, self.Convert(val), before, after, self.chained)
             elif val.getCategory() == 2:
-                self.SearchRegs(set(), reg, self.Convert(val), before, after, self.chained)
+                self.SearchRegs(self.reserve, reg, self.Convert(val), before, after, self.chained)
             elif val.getCategory() == 3:
-                self.SearchReadMem(set(), reg, val, before, after, self.chained)
+                self.SearchReadMem(self.reserve, reg, val, before, after, self.chained)
             else:
                 print "invalid expression"
                 return self.chained
@@ -438,7 +445,8 @@ class ROPChain:
                         temp.extend(after)
                         before.extend(temp)
                         chains.append(temp)
-                        return len(chains) >= self.default
+                        if len(chains) >= self.default:
+                            return True
 
         if reg in self.dependency[0].keys():
             for k, v in self.dependency[0][reg].items():
@@ -801,11 +809,13 @@ class ROPChain:
                                 if not i in self.dependency[0].keys() or not target in self.dependency[0][i].keys():
                                     continue
                                 for semantic in self.dependency[0][i][target]:
-                                    sexp = substitute(exp, (self.z3Regs[i], semantic.regs[i]))
+                                    sexp = substitute(exp, (self.z3Regs[i], self.Convert(semantic.regs[i])))
                                     ntarget = regs[0] if target == regs[1] else regs[1]
                                     self.solver = Solver()
                                     self.solver.set("soft_timeout", 1000)
-                                    self.solver.add(ForAll(self.z3Regs[reg], desired == self.Convert(semantic.regs[reg])))
+                                    self.solver.add(ForAll(self.z3Regs[reg], desired == self.Convert(semantic.regs[i])))
+                                    if str(self.solver.check()) != "sat":
+                                        break
                                     ndesired = self.solver.model()[self.z3Regs[ntarget]]
                                     temp1 = semantic.getAddress()
                                     temp1.extend(temp)
@@ -813,15 +823,79 @@ class ROPChain:
                                         return True
         return False
 
-    def SearchWriteMem(self, reserve, addr, reg, addrs, chains, deepth):
+    def SearchWriteMem(self, reserve, addr, reg, before, after, chain):
+        indent = (len(before) + len(after)) * "\t"
+        logging.debug(indent + "searching writeMem [" + addr + "] => " + str(reg) )
+        default = self.default
+        self.default = 1
         for semantic in self.writeMem:
             if self.Overlap(reserve, semantic.regs):
                 continue
-
             for k, v in semantic.regs.items():
                 if k not in self.z3Regs.keys():
-                    # TODO
-                    pass
+                    nbefore = deepcopy(before)
+                    k = k.replace("[", " ")
+                    k = k.replace("]", " ")
+                    exp = Exp.parseExp(k.split())
+                    regs = exp.getRegs()
+                    try:
+                        exp = self.Convert(exp)
+                        val = self.Convert(v)
+                    except:
+                        print exp
+                        print v
+                        continue
+                    if len(regs) == 1:
+                        if regs[0] == self.sp or val.size() != Exp.defaultLength:
+                            continue
+                        if not is_true(simplify(exp == self.z3Regs[addr])):
+                            temp = []
+                            desired = self.reduce(exp, self.z3Regs[addr], regs[0])
+                            if desired is None or len(nbefore) + len(after) + 1 >= self.deepth:
+                                continue
+                            if not self.SearchReg(reserve, regs[0], desired, nbefore, [], temp):
+                                continue
+                            nbefore = temp[0]
+                        else:
+                            print  " addr: " , exp
+                        reserve.add(regs[0])
+                        logging.debug(indent + k + " => " + str(v) )
+                        if is_true(simplify(val == self.z3Regs[reg])):
+                            nbefore.extend(semantic.getAddress())
+                            nbefore.extend(after)
+                            chain.append(nbefore)
+                            break
+                        elif len(v.getRegs()) == 0:
+                            continue
+                        elif len(v.getRegs()) == 1:
+                            desired = self.reduce(val, self.z3Regs[reg], v.getRegs()[0])
+                            if desired is None or len(nbefore) + len(after) + 1 >= self.deepth:
+                                continue
+                            logging.debug(indent + " content: " + v.getRegs()[0] + " => " + str(desired) )
+                            if self.SearchReg(reserve, v.getRegs()[0], desired, nbefore, semantic.getAddress(), chain):
+                                break
+                        else:
+                            if not reg in v.getRegs():
+                                desired = self.reduce(self.Convert(v), self.z3Regs[reg], v.getRegs()[0])
+                                if desired is None or len(nbefore) + len(after) + 1 >= self.deepth:
+                                    continue
+                                if self.SearchRegs(reserve, reg, desired, nbefore, semantic.getAddress(), chain):
+                                    break
+                            else:
+                                left = simplify(self.Convert(v) - self.z3Regs[reg])
+                                nreg = v.getRegs()[0] if reg == v.getRegs()[1] else v.getRegs()[0]
+                                desired = self.reduce(left, 0, nreg)
+                                if desired is None:
+                                    continue
+                                if self.SearchReg(reserve, nreg, desired, nbefore, semantic.getAddress(), chain):
+                                    break
+                        reserve.remove(regs[0])
+                    else:
+                        # TODO
+                        continue
+            if len(chain) >= default:
+                break
+        self.default = default
 
     def Overlap(self, reserve, regs):
         for reg in regs.keys():
@@ -838,17 +912,25 @@ class ROPChain:
 
     def Category(self):
         cond = []
+        read = set()
+        write = set()
         for addr, semantic in self.semantics.items():
+            if not random.randint(0, 11) < 6:
+                continue
             if semantic.touchUndefinedMem:
                 for reg, val in semantic.regs.items():
                     if reg in self.z3Regs.keys() and reg not in ["eip", "rip", "esp", "rsp"] and val.getCategory() == 3:
                         # read from mem
                         #logging.debug("category, readMem: " + reg + " => " + str(val.getCategory()))
-                        self.addToCat(self.readMem, reg, val.getCategory(), semantic)
+                        if semantic.getAddress()[0] not in read:
+                            self.addToCat(self.readMem, reg, val.getCategory(), semantic)
+                            read.add(semantic.getAddress()[0])
                     elif reg not in self.z3Regs.keys():
                         # write to mem
                         #logging.debug("category, writeMem: " + reg + " => " + str(val.getCategory()))
-                        self.writeMem.append(semantic)
+                        if semantic.getAddress()[0] not in write:
+                            self.writeMem.append(semantic)
+                            write.add(semantic.getAddress()[0])
                 continue
 
             if semantic.regs[self.ip].getCategory() == 0:
@@ -879,7 +961,7 @@ class ROPChain:
                     if reg not in self.z3Regs.keys():
                         continue
                     # build register dependency graph
-                    #logging.debug("category: " + reg + " => " + str(val) )
+                    logging.debug("category: " + reg + " => " + str(val) )
                     if val.getCategory() in [0, 3]:
                         self.addToCat(self.rop[0], reg, val.getCategory(), semantic)
                     elif val.getCategory() == 1 and self.checkDependency(reg, val.getRegs()[0], val):
@@ -917,7 +999,11 @@ class ROPChain:
                 return True
             return False
         else:
-            exp = self.Convert(val)
+            try:
+                exp = self.Convert(val)
+            except:
+                print val
+                return False
             self.solver = Solver()
             self.solver.set("soft_timeout", 1000)
             self.solver.add(ForAll(self.z3Regs[target], exp == self.z3Regs[target]))
@@ -944,7 +1030,7 @@ class ROPChain:
                 elif str(i) != target:
                     ret = ret - i
             #logging.debug("reduct: " + str(left) + " == " + str(right) + ", "+ str(target) + " => " + str(simplify(ret)) + str(sign))
-        except Z3Exception:
+        except:
             return None
         return simplify(ret) if sign else simplify( -1 * ret )
 

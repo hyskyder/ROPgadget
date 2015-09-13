@@ -230,6 +230,9 @@ class ROPChainTestCase1(unittest.TestCase):
         gadget15 = {"insns":[{"mnemonic":"sub", "op_str":"eax, ebx"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":15}
         gadget16 = {"insns":[{"mnemonic":"add", "op_str":"ebx, ecx"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":16}
 
+        gadget17 = {"insns":[{"mnemonic":"mov", "op_str":"dword ptr [edi], esi"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":17}
+        gadget18 = {"insns":[{"mnemonic":"xchg", "op_str":"eax, esi"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":18}
+        
         self.gadgets1 = [gadget1, gadget2]
         self.gadgets2 = [gadget2, gadget3, gadget4]
         self.gadgets3 = [gadget3, gadget4]
@@ -245,6 +248,7 @@ class ROPChainTestCase1(unittest.TestCase):
         self.gadgets13 = [gadget14, gadget15, gadget16]
         self.gadgets14 = [gadget1, gadget14]
         self.gadgets15 = [gadget3, gadget15]
+        self.gadgets16 = [gadget17, gadget18]
 
     def testConstant(self):
         self.rop = ROPChain(BinaryStub(), self.gadgets1, False, 2)
@@ -313,7 +317,9 @@ class ROPChainTestCase1(unittest.TestCase):
         assert len(res) == 1 and res[0] == ["0xe", "0x1"]
 
     def testMem(self):
-        pass
+        self.rop = ROPChain(BinaryStub(), self.gadgets16, False, 2)
+        res = list(self.rop.start({"mem":["edi", "eax"] }))
+        assert len(res) == 1 and res[0] == ["0x12", "0x11"]
 
 if __name__ == "__main__":
     unittest.main()
