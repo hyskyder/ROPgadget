@@ -130,7 +130,8 @@ class ROPParserX86:
         self.addrs = dict()
         self.mode = mode
         self.aligned = 0
-        self.undefinedMem = False
+        self.memLoc = []
+        self.writeMem = {}
         if mode == CS_MODE_32:
             self.regs = X86.regs32 + X86.FLAG
             self.Tregs = X86.Tregs32
@@ -157,13 +158,14 @@ class ROPParserX86:
     def parse(self):
         formulas = []
         for gadget in self.gadgets:
-            self.undefinedMem = False
+            self.memLoc = []
+            self.writeMem = {}
             regs = {self.sp : Exp(self.sp)}
             regs = self.parseInst(regs, gadget["insns"], 0)
             if len(regs) == 0:
                 # gadget cannot parsed
                 continue
-            formulas.append(Semantic(regs, gadget["vaddr"], self.undefinedMem))
+            formulas.append(Semantic(regs, gadget["vaddr"], self.memLoc, self.writeMem))
             self.addrs.update({hex(gadget["vaddr"]).replace("L",""):gadget["insns"]})
         print "================================="
         print "Unique gadgets parsed ", len(formulas)
@@ -176,10 +178,6 @@ class ROPParserX86:
 
         prefix = insts[i]["mnemonic"]
         op_str = insts[i]["op_str"].replace("*", " * ")
-
-        if prefix != "lea" and "ptr" in op_str:
-            # gadget read/write to mem location
-            self.undefinedMem = True
 
         if prefix not in X86.insn.keys():
             # unsupported ins
@@ -231,6 +229,13 @@ class ROPParserX86:
                 operand2 = Exp.parseOperand(op_str.split(", ")[1], regs, self.Tregs)
                 operands.update({"operand1":operand1})
                 operands.update({"operand2":operand2})
+            if prefix != "lea" and "ptr" in op_str:
+                if prefix not in ["cmp", "test", "push"] and "ptr" in op_str.split(", ")[0]:
+                    self.memLoc.append(operand1)
+                    self.writeMem.update({str(operand1):operand1})
+                else:
+                    self.memLoc.append(operand1)
+
             # contruct insn operation
             if len(ins[1]) > 0:
                 if prefix == "lea":
@@ -259,7 +264,7 @@ class ROPParserX86:
                         op2v = operands["operand1"]
                     else:
                         # mem
-                        op2k = str(operands["operand1"])
+                        op2k = str(operands["operand2"])
                         op2v = operands["operand1"]
 
                     if op1k in self.Tregs:
@@ -272,7 +277,7 @@ class ROPParserX86:
                         operands["operand2"].length = Exp.defaultLength
                         op1v = operands["operand2"]
                     else:
-                        op1k = str(operands["operand2"])
+                        op1k = str(operands["operand1"])
                         op1v = operands["operand2"]
 
                     regs.update({op1k:op1v})

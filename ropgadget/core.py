@@ -23,7 +23,7 @@ from capstone           import CS_MODE_32
 from gadgets            import Gadgets
 from options            import Options
 from ropchain.ropmaker  import ROPMaker
-from ropparse.ROPChain  import ROPChain
+from ropparse.ropchain  import ROPChain
 
 class Core(cmd.Cmd):
     def __init__(self, options):
@@ -144,7 +144,7 @@ class Core(cmd.Cmd):
         '''
         if self.__options.ropparse:
             rop = ROPChain(self.__binary, strs, self.__options.optimize, self.__options.length)
-            rop.Core()
+            rop.core()
         return True
 
 
