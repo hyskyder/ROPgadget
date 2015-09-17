@@ -296,7 +296,26 @@ class ROPChain:
                 count = count + 1
         return count
 
+    def help(self):
+        print "usage: "
+        print "  set length <integer>\t\t\tMaximum length of gadgets chain (defualt 1, should not be larger than 3)"
+        print "  set number <integer>\t\t\tDesired number of gadgets chain before stop searching (default 5)"
+        print "  addr <hexaddr>\t\t\tPrint semantic and instructions of gadget at this address"
+        print "  search <register> <expression>\tSearching gadgets chain that set register to expression"
+        print "  search <register> stack\t\tSearching gadgets chains that pop value from stack to this register"
+        print "  search mem <address> <register>\tSearching gadgets chains that write to memory address with this register"
+        print "  reserve <register> <register>\t\tReserve registers for searching next time (reset automatically after each search)"
+        print "  quit \t\t\t\t\tQuit"
+        print ""
+        print "examples:"
+        print "  search eax 4"
+        print "  search eax eax - 4"
+        print "  search eax eax + ebx"
+        print "  search eax stack"
+        print "  search mem eax ebx"
+
     def core(self):
+        self.help()
         while True:
             print "================================================\n"
             string = raw_input("Please enter command (help for usage):")
@@ -319,22 +338,7 @@ class ROPChain:
                     self.printGadget(addr)
                 continue
             elif string == "help":
-                print "usage: "
-                print "  set length <integer>\t\t\tMaximum length of gadgets chain"
-                print "  set number <integer>\t\t\tDesired number of gadgets chain before stop searching"
-                print "  addr <hexaddr>\t\t\tPrint semantic and instructions of gadget at this address"
-                #print "  print cop\t\t\t\tPrint semantic and instructions of all COP/JOP gadgets"
-                #print "  print mem\t\t\t\tPrint semantic and instructions of all gadgets that read/write memory"
-                #print "  print <register>\t\t\tPrint semantic and instructions of all gadgets that modify this register"
-                print "  search <register> <expression>\tSearching gadgets chain that set register to expression"
-                print "  search <register> stack\t\tSearching gadgets chains that pop value from stack to this register"
-                print "  search mem <address> <register>\tSearching gadgets chains that write to memory address with this register"
-                print "  reserve <register> <register>\t\tReserve registers for searching next time (reset automatically after each search)"
-                print "  quit \t\t\t\t\tQuit"
-                print ""
-                print "examples:"
-                print "  search eax ebx"
-                print "  search mem eax ebx"
+                self.help()
                 continue
             elif string.split()[0] == "reserve":
                 self.reserve = set(string.split()[1:])
