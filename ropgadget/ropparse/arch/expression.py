@@ -345,6 +345,8 @@ class Exp:
             s = s.replace("*", " * ")
             exp = Exp(Exp.parseExp(s.split()), "*")
             if str(exp) in regs.keys():
+                if isinstance(regs[str(exp)], Exp) and regs[str(exp)].length != size:
+                    return None
                 exp = regs[str(exp)]
             exp.length = size
             return exp

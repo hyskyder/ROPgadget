@@ -191,7 +191,7 @@ class ROPParserX86:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
                 dst = Exp.parseExp(ins[2][0].split())
                 if operand1 is None:
-                    dst = dst.binding({"operand1":0})
+                    dst = dst.binding({"operand1":Exp.ExpL(Exp.defaultLength,0)})
                 else:
                     dst = dst.binding({"operand1":operand1})
                 dst = dst.binding(regs)
@@ -223,18 +223,22 @@ class ROPParserX86:
             # handle special cases
             if ins[0] == 1:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
+                if operand1 is None:
+                    return []
                 operands.update({"operand1":operand1})
             elif ins[0] == 2:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
                 operand2 = Exp.parseOperand(op_str.split(", ")[1], regs, self.Tregs)
+                if operand1 is None or operand2 is None:
+                    return []
                 operands.update({"operand1":operand1})
                 operands.update({"operand2":operand2})
-            if prefix != "lea" and "ptr" in op_str:
+            if prefix != "lea" and "ptr" in op_str and (operand1.getCategory() == 3 or operand2.getCategory() == 3):
                 if prefix not in ["cmp", "test", "push"] and "ptr" in op_str.split(", ")[0]:
                     self.memLoc.append(operand1)
                     self.writeMem.update({str(operand1):operand1})
                 else:
-                    self.memLoc.append(operand1)
+                    self.memLoc.append(operand1 if operand1.getCategory() == 3 else operand2)
 
             # contruct insn operation
             if len(ins[1]) > 0:

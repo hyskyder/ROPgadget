@@ -6,11 +6,7 @@ from arch.expression import Exp
 from capstone import *
 from copy import deepcopy
 from z3 import *
-import random
-import math
 import time
-import sys
-import os.path
 import logging
 
 
@@ -186,23 +182,17 @@ class ROPChain:
                     elif exp.op == '-':
                         return -self.convert(exp.left)
                     elif exp.op == 'O':
-                        self.z3Regs["OF"] = If(self.overflow(exp.left), 1, 0)
-                        return self.z3Regs["OF"]
+                        return If(self.overflow(exp.left), BitVecVal(1, 1), BitVecVal(0,1))
                     elif exp.op == 'Z':
-                        self.z3Regs["ZF"] = If(self.convert(exp.left) == 0, 1, 0)
-                        return self.z3Regs["ZF"]
+                        return If(self.convert(exp.left) == 0, BitVecVal(1, 1), BitVecVal(0,1))
                     elif exp.op == 'S':
-                        self.z3Regs["SF"] = If(self.convert(exp.left) > 0, 1, 0)
-                        return self.z3Regs["SF"]
+                        return If(self.convert(exp.left) > 0, BitVecVal(1, 1), BitVecVal(0,1))
                     elif exp.op == 'C':
-                        self.z3Regs["CF"] = If(self.carry(exp.left), 1, 0)
-                        return self.z3Regs["CF"]
+                        return If(self.carry(exp.left), BitVecVal(1, 1), BitVecVal(0,1))
                     elif exp.op == 'P':
-                        self.z3Regs["PF"] = If(self.parity(self.convert(exp.left)) % 2 == 0, 1, 0)
-                        return self.z3Regs["PF"]
+                        return If(self.parity(self.convert(exp.left)) % 2 == 0, BitVecVal(1, 1), BitVecVal(0,1))
                     elif exp.op == 'A':
-                        self.z3Regs["AF"] = If(self.adjust(self.convert(exp.left)), 1, 0)
-                        return self.z3Regs["AF"]
+                        return If(self.adjust(self.convert(exp.left)), BitVecVal(1, 1), BitVecVal(0,1))
                     elif exp.op == '*':
                         return self.select(exp.length, self.convert(exp.left))
                     elif exp.op == '&':
@@ -301,7 +291,7 @@ class ROPChain:
         print "  set length <integer>\t\t\tMaximum length of gadgets chain (defualt 1, should not be larger than 3)"
         print "  set number <integer>\t\t\tDesired number of gadgets chain before stop searching (default 5)"
         print "  addr <hexaddr>\t\t\tPrint semantic and instructions of gadget at this address"
-        print "  search <register> <expression>\tSearching gadgets chain that set register to expression"
+        print "  search <register> <expression>\tSearching gadgets chain that set register to arithmetic expression"
         print "  search <register> stack\t\tSearching gadgets chains that pop value from stack to this register"
         print "  search mem <address> <register>\tSearching gadgets chains that write to memory address with this register"
         print "  reserve <register> <register>\t\tReserve registers for searching next time (reset automatically after each search)"
@@ -448,7 +438,7 @@ class ROPChain:
                     if self.overlap(reserve, semantic.regs.keys()):
                         continue
                     logging.debug(indent + "stack search done " + str(semantic.regs[reg]))
-                    temp = self.addToChain(before, after, semantic, r)
+                    temp = self.addToChain(before, after, semantic, reg, self.deepth, r)
                     if temp is None:
                         continue
                     chains.append(temp)
@@ -463,7 +453,7 @@ class ROPChain:
                     if semantic.regs[reg].isControl():
                         # done
                         logging.debug(indent + "stack search done " + str(semantic.regs[reg]))
-                        temp = self.addToChain(before, after, semantic, r)
+                        temp = self.addToChain(before, after, semantic, regs, self.deepth, r)
                         if temp is None:
                             continue
                         chains.append(temp)
@@ -476,14 +466,14 @@ class ROPChain:
                         if len(regs) > 1:
                             # TODO, multi regs
                             continue
-                        temp = self.addToChain([], after, semantic, r)
+                        temp = self.addToChain([], after, semantic, reg, self.deepth - len(before), r)
                         if temp is None:
                             continue
                         if reg in self.dependency.keys() and self.sp in self.dependency[reg].keys():
                             for semantic in self.dependency[reg][self.sp]:
                                 if self.overlap(reserve, semantic.regs.keys()):
                                     continue
-                                temp = self.addToChain(before, temp, semantic, r)
+                                temp = self.addToChain(before, temp, semantic, reg, self.deepth, r)
                                 chains.append(temp)
                                 if len(chains) >= self.default:
                                     return True
@@ -493,7 +483,7 @@ class ROPChain:
                 for semantic in v:
                     if self.overlap(reserve, semantic.regs.keys()):
                         continue
-                    temp = self.addToChain([], after, semantic, r)
+                    temp = self.addToChain([], after, semantic, reg, self.deepth - len(before), r)
                     if temp is None:
                         continue
                     logging.debug(indent + reg + " => " + k + ", " + str(semantic.regs[reg]))
@@ -513,7 +503,7 @@ class ROPChain:
                         continue
                     logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
                     if str(semantic.regs[reg]) == str(desired):
-                        temp = self.addToChain(before, after, semantic, reserve)
+                        temp = self.addToChain(before, after, semantic, reg, self.deepth, reserve)
                         if temp is None:
                             continue
                         chains.append(temp)
@@ -537,7 +527,7 @@ class ROPChain:
                         continue
                     res = self.solver.model()
                     ndesired = res[self.z3Regs[nreg]]
-                    temp = self.addToChain([], after, semantic, reserve)
+                    temp = self.addToChain([], after, semantic, reg, self.deepth - len(before), reserve)
                     if temp is None:
                         continue
                     logging.debug(indent + reg + " => " + str(semantic.regs[reg]) + " sat")
@@ -564,7 +554,7 @@ class ROPChain:
                         constants.append(self.findConstant(reserve, regs[i]))
                         nreserve.add(regs[i])
 
-                    temp = self.addToChain([], after, semantic, reserve)
+                    temp = self.addToChain([], after, semantic, reg, self.deepth - len(before), reserve)
                     if temp is None:
                         continue
                     coms = [(self.convert(semantic.regs[reg]) == desired)]
@@ -616,7 +606,7 @@ class ROPChain:
                     ndesired = self.reduce(self.convert(semantic.regs[reg]), desired, ntarget)
                     if ndesired is None:
                         continue
-                    temp = self.addToChain([], after, semantic, reserve)
+                    temp = self.addToChain([], after, semantic, reg, self.deepth - len(before), reserve)
                     if temp is None:
                         continue
                     logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
@@ -628,7 +618,7 @@ class ROPChain:
                     if self.overlap(reserve, semantic.regs.keys()):
                         continue
                     if is_true(simplify(desired == self.convert(semantic.regs[reg]))):
-                        temp = self.addToChain(before, after, semantic, reserve)
+                        temp = self.addToChain(before, after, semantic, reg, self.deepth, reserve)
                         if temp is None:
                             continue
                         chains.append(temp)
@@ -643,24 +633,44 @@ class ROPChain:
                         if len(kregs) > 2:
                             # For now, this method is designed for two registers expression
                             continue
-                        # eliminate one of regs to constant
                         exp = self.convert(semantic.regs[reg])
+                        if self.overlap(kregs, vregs):
+                            ntarget = kregs[0] if kregs[1] in vregs else kregs[0]
+                            ndesired = self.reduce(exp, desired, ntarget)
+                            if len(self.getRegs(ndesired)) == 1:
+                                temp = self.addToChain([], after, semantic, reg, self.deepth - len(before), reserve)
+                                if temp is None:
+                                    continue
+                                if self.searchReg(reserve, ntarget, ndesired, before, temp, chains):
+                                    return True
+                        # eliminate one of regs to constant
                         for k in kregs:
                             for s in self.findConstant(reserve, k):
-                                logging.debug(indent + "\t" + k + " => " + str(s.regs[k]))
+                                logging.debug(indent + "\t" + str(semantic.regs[reg]) + " sub: " + k + " => " + str(s.regs[k]))
                                 ntarget = kregs[0] if k == kregs[1] else kregs[1]
-                                nexp = substitute(exp, (self.z3Regs[k], self.convert(s.regs[k])))
+                                #try:
+                                if isinstance(s.regs[k].left, Exp):
+                                    nexp = substitute(exp, (self.z3Regs[k], self.convert(s.regs[k])))
+                                else:
+                                    nexp = substitute(exp, (self.z3Regs[k], BitVecVal(s.regs[k].left, s.regs[k].length)))
+                                #except:
+                                #    print exp, k, self.convert(s.regs[k])
+                                #    print s.regs[k].getCategory()
+                                #    print "Unexpected error:", sys.exc_info()[0]
+                                #    self.printGadgets(s.getAddress())
+                                #    exit()
                                 ndesired = self.reduce(nexp, desired, ntarget)
                                 if ndesired is None:
                                     continue
-                                tempb = deepcopy(before)
-                                tempb.extend(s.getAddress())
-                                tempa = semantic.getAddress()
-                                tempa.extend(after)
+                                nbefore = deepcopy(before)
+                                nbefore.extend(s.getAddress())
+                                nafter = self.addToChain([], after, semantic, reg, self.deepth - len(before), reserve)
+                                if nafter is None:
+                                    continue
                                 logging.debug(
                                     indent + "\t" + k + " => " + str(s.regs[k]) + ", " + ntarget + " == " + str(
                                         ndesired))
-                                if self.searchRegs(reserve, ntarget, ndesired, tempb, tempa, chains):
+                                if self.searchRegs(reserve, ntarget, ndesired, nbefore, nafter, chains):
                                     return True
                         # based on the reg dep
                         for k in vregs:
@@ -668,9 +678,9 @@ class ROPChain:
                                 continue
                             for s in self.dependency[kregs[0]][k]:
                                 ntarget = kregs[1]
-                                logging.debug(indent + "\t" + kregs[0] + " => " + str(s.regs[kregs[0]]))
-                                left = substitute(exp, (self.z3Regs[kregs[0]], BitVecVal(0, Exp.defaultLength)))
-                                right = substitute(exp, (self.z3Regs[ntarget], BitVecVal(0, Exp.defaultLength)))
+                                logging.debug(indent + "\t" + kregs[0] + " => " + str(exp) + ", " + ntarget)
+                                left = substitute(exp, (self.z3Regs[kregs[0]], BitVecVal(0, self.z3Regs[kregs[0]].size())))
+                                right = substitute(exp, (self.z3Regs[ntarget], BitVecVal(0, self.z3Regs[ntarget].size())))
                                 right = substitute(right,
                                                    (self.z3Regs[kregs[0]], self.convert(s.regs[kregs[0]])))
                                 ndesired = self.reduce(left, desired - right, ntarget)
@@ -702,7 +712,7 @@ class ROPChain:
                     if self.overlap(reserve, semantic.regs.keys()) or str(semantic.regs[reg]) in dup:
                         continue
                     if is_true(simplify(desired == self.convert(semantic.regs[reg]))):
-                        temp = self.addToChain(before, after, semantic, reserve)
+                        temp = self.addToChain(before, after, semantic, reg, self.deepth, reserve)
                         if temp is None:
                             continue
                         chains.append(temp)
@@ -713,7 +723,7 @@ class ROPChain:
                         ndesired = self.reduce(self.convert(semantic.regs[reg]), desired, ntarget)
                         if ndesired is None:
                             continue
-                        temp = self.addToChain([], after, semantic, reserve)
+                        temp = self.addToChain([], after, semantic, reg, self.deepth - len(before), reserve)
                         if temp is None:
                             continue
                         logging.debug(indent + reg + " => " + str(semantic.regs[reg]))
@@ -741,7 +751,7 @@ class ROPChain:
                         # eliminate the other register by set it to constant
                         ntarget = regs[0] if target == regs[1] else regs[1]
                         ndesired = self.solver.model()[self.z3Regs[ntarget]]
-                        temp = self.addToChain([], after, semantic, reserve)
+                        temp = self.addToChain([], after, semantic, reg, self.deepth - len(before), reserve)
                         if temp is None:
                             continue
                         logging.debug(
@@ -752,7 +762,7 @@ class ROPChain:
                         ndesired = self.reduce(self.convert(semantic.regs[reg]), desired, target)
                         if ndesired is None:
                             continue
-                        temp = self.addToChain([], after, semantic, reserve)
+                        temp = self.addToChain([], after, semantic, reg, self.deepth - len(before), reserve)
                         if temp is None:
                             continue
                         logging.debug(
@@ -763,7 +773,7 @@ class ROPChain:
                         # use reg dependency to locate target reg
                         if len(before) + len(after) + len(regs) >= self.deepth:
                             continue
-                        temp = self.addToChain([], after, semantic, reserve)
+                        temp = self.addToChain([], after, semantic, reg, self.deepth - len(before), reserve)
                         if temp is None:
                             continue
                         exp = simplify(desired == self.convert(semantic.regs[reg]))
@@ -780,7 +790,7 @@ class ROPChain:
                                 if str(self.solver.check()) != "sat":
                                     break
                                 ndesired = self.solver.model()[self.z3Regs[ntarget]]
-                                temp1 = self.addToChain([], temp, semantic, reserve)
+                                temp1 = self.addToChain([], temp, semantic, reg, self.deepth - len(before), reserve)
                                 if temp1 is None:
                                     continue
                                 if self.searchConstant(reserve, ntarget, ndesired, before, temp1, chains):
@@ -796,18 +806,13 @@ class ROPChain:
             if self.overlap(reserve, semantic.regs.keys()):
                 continue
             for k, v in semantic.regs.items():
-                if k in semantic.writeMem.keys():
+                if k in semantic.writeMem.keys() and v.getCategory() in [1,2]:
+                    logging.debug(indent + k + " => " + str(v))
                     nbefore = deepcopy(before)
                     exp = semantic.writeMem[k]
                     regs = exp.getRegs()
-                    try:
-                        exp = self.convert(exp.left)
-                        val = self.convert(v)
-                    except:
-                        print "readMem done, should not have this exception"
-                        print semantic.writeMem[k], v
-                        self.printGadget(semantic.getAddress()[0])
-                        continue
+                    exp = self.convert(exp.left)
+                    val = self.convert(v)
                     if len(regs) == 1:
                         if regs[0] == self.sp or val.size() != Exp.defaultLength:
                             continue
@@ -819,13 +824,8 @@ class ROPChain:
                             if not self.searchReg(reserve, regs[0], desired, nbefore, [], temp):
                                 continue
                             nbefore = temp[0]
-                        reserve.add(regs[0])
-                        logging.debug(indent + k + " => " + str(v))
                         if is_true(simplify(val == self.z3Regs[reg])):
-                            nbefore.extend(semantic.getAddress())
-                            nbefore.extend(after)
-                            chain.append(nbefore)
-                            break
+                            pass
                         elif len(v.getRegs()) == 0:
                             continue
                         elif len(v.getRegs()) == 1:
@@ -833,24 +833,43 @@ class ROPChain:
                             if desired is None or len(nbefore) + len(after) + 1 >= self.deepth:
                                 continue
                             logging.debug(indent + " content: " + v.getRegs()[0] + " => " + str(desired))
-                            if self.searchReg(reserve, v.getRegs()[0], desired, nbefore, semantic.getAddress(), chain):
+                            temp = []
+                            deepth = self.deepth
+                            self.deepth = self.deepth - 1 - len(nbefore)
+                            if not self.searchReg(reserve, v.getRegs()[0], desired, nbefore, [], temp):
+                                self.deepth = deepth
                                 break
+                            self.deepth = deepth
+                            nbefore = temp[0]
                         else:
+                            temp = []
                             if not reg in v.getRegs():
                                 desired = self.reduce(self.convert(v), self.z3Regs[reg], v.getRegs()[0])
                                 if desired is None or len(nbefore) + len(after) + 1 >= self.deepth:
                                     continue
-                                if self.searchRegs(reserve, reg, desired, nbefore, semantic.getAddress(), chain):
+                                deepth = self.deepth
+                                self.deepth = self.deepth - 1 - len(nbefore)
+                                if not self.searchRegs(reserve, reg, desired, nbefore, [], temp):
+                                    self.deepth = deepth
                                     break
+                                self.deepth = deepth
                             else:
                                 left = simplify(self.convert(v) - self.z3Regs[reg])
                                 nreg = v.getRegs()[0] if reg == v.getRegs()[1] else v.getRegs()[0]
-                                desired = self.reduce(left, 0, nreg)
+                                desired = self.reduce(left, BitVecVal(0, left.size()), nreg)
                                 if desired is None:
                                     continue
-                                if self.searchReg(reserve, nreg, desired, nbefore, semantic.getAddress(), chain):
+                                deepth = self.deepth
+                                self.deepth = self.deepth - 1 - len(nbefore)
+                                if not self.searchReg(reserve, nreg, desired, nbefore, [], temp):
+                                    self.deepth = deepth
                                     break
-                        reserve.remove(regs[0])
+                                self.deepth = deepth
+                            nbefore = temp[0]
+                        temp = self.addToChain(nbefore, after, semantic, "", self.deepth, reserve, addr)
+                        if temp is not None:
+                            chain.append(temp)
+                            break
                     else:
                         # TODO, mem address determined by multi regs
                         continue
@@ -904,10 +923,10 @@ class ROPChain:
                             write.add(semantic.getAddress()[0])
             # ROP gadgets
             for reg, val in semantic.regs.items():
+                # build register dependency graph
+                #logging.debug("category: " + reg + " => " + str(val))
                 if reg not in self.z3Regs.keys():
                     continue
-                # build register dependency graph
-                logging.debug("category: " + reg + " => " + str(val))
                 if val.getCategory() in [0, 3]:
                     self.addToCat(self.rop, reg, val.getCategory(), semantic)
                 elif val.getCategory() == 1 and "F" not in val.getRegs()[0] and self.checkDependency(reg, val.getRegs()[0], val):
@@ -924,7 +943,7 @@ class ROPChain:
                         else:
                             dep = False
                     if dep:
-                        logging.debug("registers dep: " + str(reg) + " => " + str(val))
+                        #logging.debug("registers dep: " + str(reg) + " => " + str(val))
                         self.addToCat(self.rop, reg, val.getCategory(), semantic)
 
     def checkDependency(self, reg, target, val):
@@ -932,7 +951,7 @@ class ROPChain:
         # Ex eax = ebx + 1  eax ==> ebx, eax = ebx & 1 there is no such dependency
         #    eax = ebx - ecx, eax depends on ebx True, eax depends on ecx True
         #    eax = ebx ^ ecx, eax depends on ebx True, eax depends on ecx True
-        #    eax = ebx & ecx, eax depends on ebx False, eax depends on ecx False 
+        #    eax = ebx & ecx, eax depends on ebx False, eax depends on ecx False
         if len(reg) == 2 or len(target) == 2:
             return False
         if val.getCategory() == 1:
@@ -963,20 +982,19 @@ class ROPChain:
     def reduce(self, left, right, target):
         # reduce the expression
         # Ex. eax' + ebx == eax   ==>  eax' == eax - ebx
-        try:
-            left = simplify(left)
-            ret = right
-            sign = True
-            for i in left.children():
-                if len(i.children()) != 0 and target in str(i):
-                    sign = False
-                elif str(i) != target:
-                    ret = ret - i
-                    # logging.debug("reduct: " + str(left) + " == " + str(right) + ", "+ str(target) + " => " + str(simplify(ret)) + str(sign))
-        except:
-            print left, right, target
-            print "check dep, wonder why"
+        if len(target) == 2:
             return None
+        left = simplify(left)
+        ret = right
+        sign = True
+        #logging.debug("reduct: " + str(left) + " == " + str(right) + ", "+ str(target))
+        for i in left.children():
+            if len(i.children()) != 0 and target in str(i):
+                sign = False
+            elif str(i) != target:
+                if i.size() != right.size():
+                    return None
+                ret = ret - i
         return simplify(ret) if sign else simplify(-1 * ret)
 
     def getRegs(self, exp):
@@ -993,33 +1011,41 @@ class ROPChain:
                 regs.append(str(i))
         return regs
 
-    def addToChain(self, before, after, cur, r):
+    def addToChain(self, before, after, cur, dst, d, r, used = ''):
         regs = set()
         for mem in cur.memLoc:
             # fix all mem location, For now only deal with one register
-            if len(mem.getRegs()) != 1:
+            if len(mem.getRegs()) != 1 or (dst != "" and dst in mem.getRegs()):
                 return None
+            if used == mem.getRegs()[0]:
+                continue
             regs |= set(mem.getRegs())
 
         if not cur.regs[self.ip].isControl():
             # COP/JOP, fix ret addr
+            if used in cur.regs[self.ip].getRegs() or (dst != "" and dst in cur.regs[self.ip].getRegs()):
+                return None
             regs |= set(cur.regs[self.ip].getRegs())
 
-        if self.overlap(r, regs) or len(regs) + len(before) + len(after) + 1 > self.deepth:
+        if self.overlap(r, regs) or len(regs) + len(before) + len(after) + 1 > d:
             return None
 
         temp = deepcopy(before)
         reserve = deepcopy(r)
         default = self.default
+        deepth = self.deepth
         self.default = 1
+        self.deepth = d - len(after) - 1
         for reg in regs:
             fixStack = []
             if not self.searchStack(reserve, reg, temp, [], fixStack):
                 self.default = default
+                self.deepth = deepth
                 return None
             reserve.add(reg)
             temp = fixStack[0]
         temp.extend(cur.getAddress())
         temp.extend(after)
         self.default = default
+        self.deepth = deepth
         return temp

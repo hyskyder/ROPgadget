@@ -24,6 +24,7 @@ class ExpTestCase(unittest.TestCase):
         assert Exp(Exp("1"),"*").getCategory() == 3
         assert Exp(Exp(Exp("esp"), "+", 1),"*").getCategory() == 3
         assert Exp(Exp(Exp("eax"),"*"), "+", Exp("ebx")).getCategory() == 4
+        assert Exp(Exp(Exp(Exp("eax"),"*"), "+", Exp("ebx")), "+", Exp(0)).getCategory() == 4
         assert Exp("1","condition", Exp("eax"), Exp("ebx")).getCategory() == 5
         operand1 = Exp.parseOperand("byte ptr [0x15]", {}, {})
         assert operand1.getCategory() == 3
@@ -238,6 +239,10 @@ class ROPChainTestCase1(unittest.TestCase):
         gadget21 = {"insns":[{"mnemonic":"mov", "op_str":"ebx, eax"}, {"mnemonic":"call", "op_str": "eax"}], "vaddr":21}
         gadget22 = {"insns":[{"mnemonic":"mov", "op_str":"dword ptr [eax], ebx"}, {"mnemonic":"mov", "op_str": "ebx, ecx"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":22}
 
+        gadget23 = {"insns":[{'mnemonic': u'xchg', 'op_str': u'eax, ebp', 'vaddr': 134715832L}, {'mnemonic': u'ret', 'op_str': u'-0x3fcf', 'vaddr': 134715833L}], "vaddr":1}
+        gadget24 = {"insns":[{'mnemonic': u'add', 'op_str': u'ebx, ebp', 'vaddr': 135004340L}, {'mnemonic': u'ret', 'op_str': u'', 'vaddr': 135004342L}], "vaddr": 2}
+
+        gadget25 = {"insns":[{'mnemonic': u'xchg', 'op_str': u'eax, ebx', 'vaddr': 829972L}, {'mnemonic': u'and', 'op_str': u'edx, dword ptr [eax + 0x440ffffd]', 'vaddr': 829973L}, {'mnemonic': u'ret', 'op_str': u'0x4489', 'vaddr': 829979L}], "vaddr":1}
         self.gadgets1 = [gadget1, gadget2]
         self.gadgets2 = [gadget2, gadget3, gadget4]
         self.gadgets3 = [gadget3, gadget4]
@@ -258,6 +263,8 @@ class ROPChainTestCase1(unittest.TestCase):
         self.gadgets18 = [gadget13, gadget20]
         self.gadgets19 = [gadget13, gadget21]
         self.gadgets20 = [gadget13, gadget22]
+        self.gadgets21 = [gadget23, gadget24]
+        self.gadgets22 = [gadget25]
 
     def testCOP(self):
 
@@ -347,10 +354,19 @@ class ROPChainTestCase1(unittest.TestCase):
         res = list(self.rop.start({"ebx": Exp(Exp("ebx"), '+', Exp("eax"))}))
         assert len(res) == 1 and res[0] == ["0xe", "0x1"]
 
+        self.rop = ROPChain(BinaryStub(), self.gadgets21, False, 2)
+        res = list(self.rop.start({"ebx":Exp(Exp("ebx"),"+", Exp("eax"))}))
+        assert len(res) == 1 and res[0] == ["0x1", "0x2"]
+
     def testMem(self):
         self.rop = ROPChain(BinaryStub(), self.gadgets16, False, 2)
         res = list(self.rop.start({"mem":["edi", "eax"] }))
         assert len(res) == 1 and res[0] == ["0x12", "0x11"]
+
+    def testDebug(self):
+        self.rop = ROPChain(BinaryStub(), self.gadgets22, False, 2)
+        res = list(self.rop.start({"eax":Exp("ebx") }))
+
 
 if __name__ == "__main__":
     unittest.main()
