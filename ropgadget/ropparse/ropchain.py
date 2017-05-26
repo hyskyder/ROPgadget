@@ -5,7 +5,7 @@ from arch.semantic import Semantic
 from arch.expression import Exp
 from capstone import *
 from copy import deepcopy
-from z3 import *
+from z3.z3 import *
 import time
 import logging
 
@@ -741,7 +741,7 @@ class ROPChain:
                         # TODO, multiple regs
                         continue
                     self.solver = Solver()
-                    self.solver.set("soft_timeout", 1000)
+                    self.solver.set("timeout", 1000)
                     self.solver.add(ForAll(self.z3Regs[target], desired == self.convert(semantic.regs[reg])))
                     sat = self.solver.check()
                     if str(sat) == "sat":
@@ -785,7 +785,7 @@ class ROPChain:
                                 sexp = substitute(exp, (self.z3Regs[i], self.convert(semantic.regs[i])))
                                 ntarget = regs[0] if target == regs[1] else regs[1]
                                 self.solver = Solver()
-                                self.solver.set("soft_timeout", 1000)
+                                self.solver.set("timeout", 1000)
                                 self.solver.add(ForAll(self.z3Regs[reg], desired == self.convert(semantic.regs[i])))
                                 if str(self.solver.check()) != "sat":
                                     break
@@ -968,13 +968,13 @@ class ROPChain:
         else:
             exp = self.convert(val)
             self.solver = Solver()
-            self.solver.set("soft_timeout", 1000)
+            self.solver.set("timeout", 1000)
             self.solver.add(ForAll(self.z3Regs[target], exp == self.z3Regs[target]))
             sat = self.solver.check()
             if str(sat) == "sat":
                 return True
             self.solver = Solver()
-            self.solver.set("soft_timeout", 1000)
+            self.solver.set("timeout", 1000)
             self.solver.add(ForAll(self.z3Regs[target], exp == -self.z3Regs[target]))
             sat = self.solver.check()
             return str(sat) == "sat"
