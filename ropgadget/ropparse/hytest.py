@@ -158,4 +158,4 @@ class ROPChainTestCase1(unittest.TestCase):
         assert len(res) == 1 and res[0] == ["0xd", "0x16"]
 
 if __name__ == "__main__":
-    unittest.main(verbosity=20)
+    unittest.main(verbosity=10)

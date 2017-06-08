@@ -357,6 +357,9 @@ if __name__ == '__main__':
             inst.update({"op_str": decode.op_str})
             inst.update({"vaddr": decode.address})
             gadget.append(inst)
+        gadget={"insns":gadget, "vaddr":len(binary)}
         gadgets.append(gadget)
     p = ROPParserX86(gadgets, CS_MODE_32)
     formulas = p.parse()
+    for item in formulas:
+        print item

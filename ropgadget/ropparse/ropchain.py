@@ -308,66 +308,72 @@ class ROPChain:
         self.help()
         while True:
             print "================================================\n"
-            string = raw_input("Please enter command (help for usage):")
-            if string.split()[0] == "set":
-                if string.split()[1] == "length":
-                    self.deepth = int(string.split()[2])
-                    print "set searching deepth to ", self.deepth
-                elif string.split()[1] == "number":
-                    self.default = int(string.split()[2])
-                    print "set wanted gadget number to ", self.default
-                continue
-            elif string.split()[0] == "addr":
-                if "0x" in string.split()[1]:
-                    addr = (string.split()[1].lower())
-                else:
-                    addr = (hex(int(string.split()[1])))
-                if not addr in self.parser.addrs.keys():
-                    print "gadget of this address doesn't exist"
-                else:
-                    self.printGadget(addr)
-                continue
-            elif string == "help":
-                self.help()
-                continue
-            elif string.split()[0] == "reserve":
-                self.reserve = set(string.split()[1:])
-                continue
-            elif string == "quit":
-                break
-            elif string.split()[0] == "print" or string.split()[0] == "p":
-                reg = string.split()[1]
-                if reg == "mem":
-                    continue
-                elif reg == "cop":
-                    continue
-                else:
-                    if reg in self.rop.keys():
-                        for cat in self.rop[reg].keys():
-                            for s in self.rop[reg][cat]:
-                                print s.getAddress()[0], reg, " => ", str(s.regs[reg])
+            cmd = raw_input("Please enter command (help for usage):")
+            res=process_cmd(cmd)
+            if (res): break
 
-            elif string.split()[0] == "search":
-                regs = {}
-                reg = string.split()[1]
-                tokens = string.split()[2:]
-                if reg == "mem":
-                    val = tokens
-                elif len(tokens) == 0:
-                    val = None
-                elif len(tokens) == 1 and tokens[0] == "stack":
-                    val = "stack"
-                else:
-                    val = Exp.parseExp(tokens)
-                    if not isinstance(val, Exp):
-                        val = Exp(val)
-                    val.length = Exp.defaultLength
-                regs.update({reg: val})
-                self.start(regs)
-                self.reserve.clear()
+
+    def process_cmd(self,string)
+        if string.split()[0] == "set":
+            if string.split()[1] == "length":
+                self.deepth = int(string.split()[2])
+                print "set searching deepth to ", self.deepth
+            elif string.split()[1] == "number":
+                self.default = int(string.split()[2])
+                print "set wanted gadget number to ", self.default
+            return 0
+        elif string.split()[0] == "addr":
+            if "0x" in string.split()[1]:
+                addr = (string.split()[1].lower())
             else:
-                print "what are you doing........"
-                continue
+                addr = (hex(int(string.split()[1])))
+            if not addr in self.parser.addrs.keys():
+                print "gadget of this address doesn't exist"
+            else:
+                self.printGadget(addr)
+            return 0
+        elif string == "help":
+            self.help()
+            return 0
+        elif string.split()[0] == "reserve":
+            self.reserve = set(string.split()[1:])
+            return 0
+        elif string == "quit":
+            break 1
+        elif string.split()[0] == "print" or string.split()[0] == "p":
+            reg = string.split()[1]
+            if reg == "mem":
+                return 0
+            elif reg == "cop":
+                return 0
+            else:
+                if reg in self.rop.keys():
+                    for cat in self.rop[reg].keys():
+                        for s in self.rop[reg][cat]:
+                            print s.getAddress()[0], reg, " => ", str(s.regs[reg])
+
+        elif string.split()[0] == "search":
+            regs = {}
+            reg = string.split()[1]
+            tokens = string.split()[2:]
+            if reg == "mem":
+                val = tokens
+            elif len(tokens) == 0:
+                val = None
+            elif len(tokens) == 1 and tokens[0] == "stack":
+                val = "stack"
+            else:
+                val = Exp.parseExp(tokens)
+                if not isinstance(val, Exp):
+                    val = Exp(val)
+                val.length = Exp.defaultLength
+            regs.update({reg: val})
+            self.start(regs)
+            self.reserve.clear()
+        else:
+            print "what are you doing........"
+            return 0
+        return 0
 
     @timing
     def start(self, regs):
