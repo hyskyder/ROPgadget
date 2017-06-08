@@ -4,7 +4,7 @@ from arch.parserx86 import *
 from arch.expression import *
 from arch.semantic import *
 from ropchain import *
-import cProfile, pstats, StringIO
+#import cProfile, pstats, StringIO
 
 class BinaryStub():
     def __init__(self):
@@ -16,138 +16,6 @@ class BinaryStub():
     def getArchMode(self):
         return CS_MODE_32
 
-class ExpTestCase(unittest.TestCase):
-    def testGetCat(self):
-        assert Exp("1").getCategory() == 0
-        assert Exp("eax").getCategory() == 1
-        assert Exp(Exp("eax"), "+", Exp("ebx")).getCategory() == 2
-        assert Exp(Exp("1"),"*").getCategory() == 3
-        assert Exp(Exp(Exp("esp"), "+", 1),"*").getCategory() == 3
-        assert Exp(Exp(Exp("eax"),"*"), "+", Exp("ebx")).getCategory() == 4
-        assert Exp(Exp(Exp(Exp("eax"),"*"), "+", Exp("ebx")), "+", Exp(0)).getCategory() == 4
-        assert Exp("1","condition", Exp("eax"), Exp("ebx")).getCategory() == 5
-        operand1 = Exp.parseOperand("byte ptr [0x15]", {}, {})
-        assert operand1.getCategory() == 3
-        operands = {}
-        operands.update({"operand1":operand1})
-        exp = Exp.parse("operand1 = operand1 ^ operand1", operands)
-        for key, val in exp.items():
-            assert val.getCategory() == 3 and key == "operand1"
-
-        operand1 = Exp.parseOperand("al", {"eax":Exp("eax")}, {"al":["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8]})
-        assert operand1.getCategory() == 1
-
-    def testExpBinding(self):
-        exp = Exp("eax")
-        exp = exp.binding({"eax":Exp(1)})
-        assert str(exp) == "1"
-        exp2 = Exp(Exp("eax"), "+", Exp("1"))
-        exp2 = exp2.binding({"eax":exp})
-        assert str(exp2) == "( 1 + 1 )"
-
-
-    def testExpParsing(self):
-        exp = Exp.parseOperand("byte ptr [rax + 0x15]", {}, {})
-        assert str(exp) == "[ ( rax + 0x15 ) ]"
-        exp = Exp.parseOperand("eax", {"eax":Exp(1)},{})
-        assert str(exp) == "1"
-        exp = Exp.parse("operand1 = operand2", { "operand1":Exp("eax"), "operand2":Exp("ebx")})
-        for key, val in exp.items():
-            assert key == "operand1" and str(val) == "ebx"
-        exp = Exp.parse("operand1 = operand1 + operand2", {"operand1":Exp("eax"), "operand2":Exp(4)})
-        for key, val in exp.items():
-            assert key == "operand1" and str(val) == "( eax + 4 )"
-        exp = Exp.parse("operand1 = ( operand2 - 1 ) $ 0 : 15", {"operand1":Exp("ax"), "operand2":Exp("eax")})
-        for key, val in exp.items():
-            assert key == "operand1" and str(val) == "( ( eax - 1 ) $ 0 : 15 )"
-        exp = Exp.parse("operand1 = ( operand1 $ 16 : 31 ) # operand2", {"operand1":Exp("eax"), "operand2":Exp("ax")})
-        for key, val in exp.items():
-            assert key == "operand1" and str(val) == "( ( eax $ 16 : 31 ) # ax )"
-
-    def testExpLength(self):
-        operand = Exp.parseOperand("eax", {}, {})
-        assert operand.length == 32
-
-        operand = Exp.parseOperand("al", {"eax":operand}, {"al":["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8]})
-        assert operand.length == 8 
-
-        operand1 = Exp.parseOperand("eax", {}, {})
-        assert operand1.length == 32
-
-        operand2 = Exp.parseOperand("1", {}, {})
-        assert operand2.length == 0
-
-        operands = {}
-        operands.update({"operand1":operand1})
-        operands.update({"operand2":operand2})
-        exp = Exp.parse("operand1 = operand1 + operand2", operands)
-        assert len(exp) == 1
-        for key, val in exp.items():
-            assert key == "operand1" and str(val) == "( eax + 1 )" and val.length == 32
-
-        operands = {}
-        operand1 = Exp.parseOperand("al", {"eax":exp["operand1"]}, {"al":["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8]})
-        assert str(operand1) == "( ( eax + 1 ) $ 0 : 7 )" and operand1.length == 8
-        operands.update({"operand1":operand1})
-        operands.update({"operand2":Exp("1")})
-        exp2 = Exp.parse("operand1 = operand1 + operand2", operands)
-        assert len(exp2) == 1
-        for key, val in exp2.items():
-            assert key == "operand1" and str(val) == "( ( ( eax + 1 ) $ 0 : 7 ) + 1 )" and val.length == 8
-            # concat al back to eax
-            temp = Exp.parse("eax = ( eax $ 8 : 31 ) # al", {"al":val, "eax":exp["operand1"]})
-            for k, v in temp.items():
-                v = v.binding({"al":val})
-                assert v.length == 32 and str(v) == "( ( ( eax + 1 ) $ 8 : 31 ) # ( ( ( eax + 1 ) $ 0 : 7 ) + 1 ) )"
-
-        operand1 = Exp.parseOperand("eax", {}, {})
-        assert operand1.length == 32
-
-        operand2 = Exp.parseOperand("1", {}, {})
-        assert operand2.length == 0
-
-        operands = {}
-        operands.update({"operand1":operand1})
-        operands.update({"operand2":operand2})
-        exp = Exp.parse("operand1 = operand2", operands)
-        assert len(exp) == 1
-        for key, val in exp.items():
-            assert key == "operand1" and str(val) == "1" and val.length == 32
-
-        operands = {}
-        operand1 = Exp.parseOperand("al", {"eax":exp["operand1"]}, {"al":["eax $ 0 : 7", "eax = ( eax $ 8 : 31 ) # al", 8]})
-        assert str(operand1) == "( 1 $ 0 : 7 )" and operand1.length == 8 and operand1.condition.length == 32
-        operands.update({"operand1":operand1})
-        operands.update({"operand2":Exp("1")})
-        exp2 = Exp.parse("operand1 = operand1 + operand2", operands)
-        assert len(exp2) == 1
-        for key, val in exp2.items():
-            assert key == "operand1" and str(val) == "( ( 1 $ 0 : 7 ) + 1 )" and val.length == 8
-            # concat al back to eax
-            temp = Exp.parse("eax = ( eax $ 8 : 31 ) # al", {"al":val, "eax":exp["operand1"]})
-            for k, v in temp.items():
-                v = v.binding({"al":val})
-                assert v.length == 32 and str(v) == "( ( 1 $ 8 : 31 ) # ( ( 1 $ 0 : 7 ) + 1 ) )"
-
-class ParserX86TestCase1(unittest.TestCase):
-    def setUp(self):
-        gadget1 = {"insns":[
-            {'mnemonic': u'mov', 'op_str': u'esi, eax', 'vaddr': 135030012L}, 
-            {'mnemonic': u'mov', 'op_str': u'eax, esi', 'vaddr': 135030014L},
-            {'mnemonic': u'pop', 'op_str': u'esi', 'vaddr': 135030016L}, 
-            {'mnemonic': u'pop', 'op_str': u'edi', 'vaddr': 135030017L}, 
-            {'mnemonic': u'pop', 'op_str': u'ebp', 'vaddr': 135030018L}, 
-            {'mnemonic': u'ret', 'op_str': u'', 'vaddr': 135030019L}], 
-            "vaddr":1}
-        gadgets = [gadget1]
-        self.parser = ROPParserX86(gadgets, BinaryStub().getArchMode()) 
-        self.formula = self.parser.parse()
-        self.rop = ROPChain(BinaryStub(), [], False, 2)
-
-    def testParse(self):
-        for k, v in self.formula[0].regs.items():
-            print k, v
-        assert str(self.formula[0].regs["eax"]) == "eax" 
 
 class ParserX86TestCase2(unittest.TestCase):
     def setUp(self):
@@ -182,7 +50,7 @@ class ParserX86TestCase2(unittest.TestCase):
         self.parser = ROPParserX86(gadgets, BinaryStub().getArchMode()) 
         self.formula = self.parser.parse()
 
-    def testParseInst(self):
+    def test_ParseInst(self):
         assert len(self.formula[0].regs) == 2 and str(self.formula[0].regs["eax"]) == "1" and str(self.formula[0].regs["esp"]) == "esp"
         assert len(self.formula[1].regs) == 2 and str(self.formula[1].regs["ebx"]) == "( ( ZF == 1 ) ? eax : ebx )"
         assert len(self.formula[2].regs) == 2 and str(self.formula[2].regs["esp"]) == "( esp + 4 )" and str(self.formula[2].regs["[ esp ]"]) == "eax"
@@ -278,6 +146,7 @@ class ROPChainTestCase1(unittest.TestCase):
         self.rop = ROPChain(BinaryStub(), self.gadgets17, False, 2)
         res = list(self.rop.start({"ebx": Exp.ExpL(32, 1)}))
         assert len(res) == 1 and res[0] == ["0xd", "0x13"]
+        print res
 
 
         self.rop = ROPChain(BinaryStub(), self.gadgets18, False, 2)
@@ -288,100 +157,5 @@ class ROPChainTestCase1(unittest.TestCase):
         res = list(self.rop.start({"ebx": Exp("ecx")}))
         assert len(res) == 1 and res[0] == ["0xd", "0x16"]
 
-        ''' FIXME
-        self.rop = ROPChain(BinaryStub(), self.gadgets19, False, 2)
-        res = list(self.rop.start({"ebx": Exp("eax")}))
-        assert len(res) == 0
-        '''
-
-    def testConstant(self):
-        self.rop = ROPChain(BinaryStub(), self.gadgets1, False, 2)
-        res = list(self.rop.start({"ebx": Exp.ExpL(32, 1)}))
-        assert len(res) == 1 and res[0] == ["0x2", "0x1"]
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets2, False, 3)
-        res = list(self.rop.start({"ebx": Exp.ExpL(32, 1)}))
-        assert len(res) == 1 and res[0] in [["0x2", "0x4", "0x3"], ["0x4", "0x2", "0x3"]]
-
-    def testReg(self):
-        self.rop = ROPChain(BinaryStub(), self.gadgets3, False, 2)
-        res = list(self.rop.start({"ebx": Exp("eax")}))
-        assert len(res) == 1 and res[0] == ["0x4", "0x3"]
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets4, False, 2)
-        res = list(self.rop.start({"ebx": Exp(Exp("ebx"), "+", Exp.ExpL(32, 1))}))
-        assert len(res) == 1 and res[0] == ["0x2", "0x3"]
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets5, False, 2)
-        res = list(self.rop.start({"ebx": Exp(Exp("ebx"), "+", Exp.ExpL(32, 1))}))
-        assert len(res) == 1 and res[0] == ["0x9"]
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets6, False, 2)
-        res = list(self.rop.start({"ebx": Exp("eax")}))
-        assert len(res) == 1 and res[0] == ["0x4", "0xa"]
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets7, False, 2)
-        res = list(self.rop.start({"ebx": Exp("eax")}))
-        assert len(res) == 0 
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets8, False, 2)
-        res = list(self.rop.start({"ebx": Exp("eax")}))
-        assert len(res) == 1 and res[0] == ["0xc", "0xb"]
-
-        # FIXME
-        self.rop = ROPChain(BinaryStub(), self.gadgets15, False, 2)
-        res = list(self.rop.start({"ebx": Exp("eax")}))
-        assert len(res) == 1 and res[0] == ["0xf", "0x3"]
-
-    def testStack(self):
-        ''' FIXME
-        self.rop = ROPChain(BinaryStub(), self.gadgets9, False, 2)
-        res = list(self.rop.start({"eax": "stack"}))
-        assert len(res) == 1 and res[0] == ["0x6", "0x5"]
-        '''
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets10, False, 2)
-        res = list(self.rop.start({"eax": "stack"}))
-        assert len(res) == 1 and res[0] == ["0xd"]
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets11, False, 2)
-        res = list(self.rop.start({"ebx": "stack"}))
-        assert len(res) == 1 and res[0] == ["0xd", "0x1"]
-
-    def testRegs(self):
-        self.rop = ROPChain(BinaryStub(), self.gadgets12, False, 2)
-        res = list(self.rop.start({"eax": Exp(Exp("ebx"), '+', Exp("eax"))}))
-        assert len(res) == 1 and res[0] == ["0xe"]
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets13, False, 3)
-        res = list(self.rop.start({"eax": Exp(Exp("eax"), '+', Exp("ecx"))}))
-        assert len(res) == 1 and res[0] == ["0xf", "0x10", "0xe"]
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets14, False, 2)
-        res = list(self.rop.start({"ebx": Exp(Exp("ebx"), '+', Exp("eax"))}))
-        assert len(res) == 1 and res[0] == ["0xe", "0x1"]
-
-        self.rop = ROPChain(BinaryStub(), self.gadgets21, False, 2)
-        res = list(self.rop.start({"ebx":Exp(Exp("ebx"),"+", Exp("eax"))}))
-        assert len(res) == 1 and res[0] == ["0x1", "0x2"]
-
-    def testMem(self):
-        self.rop = ROPChain(BinaryStub(), self.gadgets16, False, 2)
-        res = list(self.rop.start({"mem":["edi", "eax"] }))
-        assert len(res) == 1 and res[0] == ["0x12", "0x11"]
-
-    def testDebug(self):
-        self.rop = ROPChain(BinaryStub(), self.gadgets22, False, 2)
-        res = list(self.rop.start({"eax":Exp("ebx") }))
-
-
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
-    # suite = unittest.TestLoader().loadTestsFromTestCase(ExpTestCase)
-    # unittest.TextTestRunner(verbosity=2).run(suite)
-    # suite = unittest.TestLoader().loadTestsFromTestCase(ParserX86TestCase1)
-    # unittest.TextTestRunner(verbosity=2).run(suite)
-    # suite = unittest.TestLoader().loadTestsFromTestCase(ParserX86TestCase2)
-    # unittest.TextTestRunner(verbosity=2).run(suite)
-    # suite = unittest.TestLoader().loadTestsFromTestCase(ROPChainTestCase1)
-    # unittest.TextTestRunner(verbosity=2).run(suite)
+    unittest.main(verbosity=20)
