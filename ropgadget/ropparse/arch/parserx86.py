@@ -168,7 +168,7 @@ class ROPParserX86:
             formulas.append(Semantic(regs, gadget["vaddr"], self.memLoc, self.writeMem))
             self.addrs.update({hex(gadget["vaddr"]).replace("L",""):gadget["insns"]})
         print "================================="
-        print "Unique gadgets parsed ", len(formulas)
+        print "parsex86: gadgets parsed = ", len(formulas)
         return formulas
 
 
@@ -181,6 +181,7 @@ class ROPParserX86:
 
         if prefix not in X86.insn.keys():
             # unsupported ins
+            print "[Warn] Skip Unsupported ins: " + prefix
             return {}
 
         ins = X86.insn.get(prefix)

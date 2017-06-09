@@ -305,7 +305,8 @@ class ROPChain:
         print "  search mem eax ebx"
 
     def core(self):
-        self.help()
+        #self.help()
+        print "[Hello] ROPChain: input 'help' to get help."
         while True:
             print "================================================\n"
             cmd = raw_input("Please enter command (help for usage):")
@@ -313,7 +314,7 @@ class ROPChain:
             if (res): break
 
 
-    def process_cmd(self,string)
+    def process_cmd(self,string):
         if string.split()[0] == "set":
             if string.split()[1] == "length":
                 self.deepth = int(string.split()[2])
@@ -339,7 +340,7 @@ class ROPChain:
             self.reserve = set(string.split()[1:])
             return 0
         elif string == "quit":
-            break 1
+            return 1
         elif string.split()[0] == "print" or string.split()[0] == "p":
             reg = string.split()[1]
             if reg == "mem":
@@ -396,14 +397,14 @@ class ROPChain:
             else:
                 print "invalid expression"
                 return self.chained
-        print "--------------------------------------"
+        print "[in ROPChain.start()]---------------"
         if len(self.chained) < 2:
             print len(self.chained), " gadget chain found"
         else:
             print len(self.chained), " gadget chains found"
 
         for i, each in enumerate(self.chained):
-            print "gadget chain number ", i, ":"
+            print "+ Gadget chain No. ", i, ":"
             self.printGadgets(each)
         return self.chained
 
@@ -412,9 +413,9 @@ class ROPChain:
             self.printGadget(addr)
 
     def printGadget(self, addr):
-        print addr
+        print "addr=", addr
         print self.parser.addrs[addr]
-        print self.semantics[addr]
+        print "semantics[addr]=", self.semantics[addr]
 
     def findConstant(self, reserve, reg):
         number = set()
