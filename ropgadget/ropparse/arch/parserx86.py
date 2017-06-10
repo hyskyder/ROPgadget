@@ -163,6 +163,7 @@ class ROPParserX86:
             regs = {self.sp : Exp(self.sp)}
             regs = self.parseInst(regs, gadget["insns"], 0)
             if len(regs) == 0:
+                print "[Warn] Parser failed to parse the gadget addr=" + str(hex(gadget["vaddr"]))
                 # gadget cannot parsed
                 continue
             formulas.append(Semantic(regs, gadget["vaddr"], self.memLoc, self.writeMem))
@@ -176,7 +177,7 @@ class ROPParserX86:
         ## Recursive function, insts should be consistent with all iterations
         ## regs : unkonwn
         ## insts : the gadget pool
-        ## i : index of the list *insts* (i.e. the index of gadget in the gadget pool)
+        ## i : index of the list *insts*
         if i >= len(insts):
             return regs
 
@@ -186,10 +187,12 @@ class ROPParserX86:
         if prefix not in X86.insn.keys():
             # unsupported ins
             print "[Warn] Skip Unsupported ins: " + prefix
-            return {}
+            return self.parseInst(regs, insts, i+1)
 
         ins = X86.insn.get(prefix)
         if prefix in X86.Control:
+            if( i+1 != len(insts)):
+                 print "[Warn] Control ins at middle of a gadget is not supported. Parser will not process the rest insts in this gadget."
             # control transfer ins, end of gadget
             if prefix in ["ret", "call"]:
                 operand1 = None

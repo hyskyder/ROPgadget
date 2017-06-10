@@ -32,17 +32,21 @@ class TryLibcGadgetFile(unittest.TestCase):
     def ReadGdtFile(self):
         print ""
         with open('libc.BBB-CFI-pass.log') as fp:
+            line_conut=0;
             for line in fp:
+                line_conut=line_conut+1
+                if(line_conut!=14):
+                    continue
                 addr=line[0:10]
                 inst_list=(line[13:-1]).split(" ; ")
                 self.gdt_pool.append(self.gen_gadget(addr,inst_list))
-                if addr == "0x0017176a":
+                if len(self.gdt_pool) >= 14:
                     break
         print "Num loaded Gadgets = " + str(len(self.gdt_pool))
-        #pp = pprint.PrettyPrinter(indent=4)
-        #pp.pprint(self.gdt_pool)
-        #for gdt in self.gdt_pool:
-        #    print hex(gdt["vaddr"])
+        pp = pprint.PrettyPrinter(indent=4)
+        pp.pprint(self.gdt_pool)
+        for gdt in self.gdt_pool:
+            print hex(gdt["vaddr"])
 
     def setUp(self):
         self.ReadGdtFile()
@@ -52,6 +56,7 @@ class TryLibcGadgetFile(unittest.TestCase):
         semantic_list = parser.parse()
         for item in semantic_list:
             print item
+        assert len(self.gdt_pool) == len(semantic_list)
 
     def xxx(self):
         self.rop = ROPChain(BinaryStub(), self.gadgets17, False, 2)
