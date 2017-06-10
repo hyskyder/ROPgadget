@@ -1,4 +1,13 @@
 
+ROPgadet - ROPparse module
+===================================================
+
+Authors
+
+* Xiaofan ZHANG (Introduce z3 to solve ROP/COP/JOP chain)
+
+
+
 ROPgadget project (>= v5.0)
 ===================================================
 

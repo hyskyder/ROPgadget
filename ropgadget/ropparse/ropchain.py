@@ -372,7 +372,8 @@ class ROPChain:
             self.start(regs)
             self.reserve.clear()
         else:
-            print "what are you doing........"
+            print "[ERROR] Unrecognized Command."
+            self.help()
             return 0
         return 0
 
