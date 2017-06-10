@@ -54,14 +54,10 @@ class TryLibcGadgetFile(unittest.TestCase):
         #    print item
         assert len(self.gdt_pool) >= len(semantic_list)
 
-    def xxx(self):
-        return 0
-        #self.rop = ROPChain(BinaryStub(), self.gadgets17, False, 2)
-        #res = list(self.rop.start({"ebx": Exp.ExpL(32, 1)}))
-        #assert len(res) == 1 and res[0] == ["0xd", "0x13"]
-        #print "res=" + str(res)
+
 
 """
+
 class ParserX86TestCase2(unittest.TestCase):
     def setUp(self):
         gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 1"}], "vaddr":1}
@@ -122,7 +118,9 @@ class ParserX86TestCase2(unittest.TestCase):
         assert set(self.formula[23].regs) == set(['esp', 'eax', 'ebx']) and str(self.formula[23].regs["eax"]) == "ebx" and str(self.formula[23].regs["ebx"]) == "eax" 
         assert set(self.formula[24].regs) == set(['esp', 'eax', 'ebx']) and str(self.formula[24].regs["eax"]) == "( ( eax $ 16 : 31 ) # ( ebx $ 0 : 15 ) )" and str(self.formula[24].regs["ebx"]) == "( ( ebx $ 16 : 31 ) # ( eax $ 0 : 15 ) )" 
         assert set(self.formula[25].regs.keys()) == set(["esp", "[ ecx ]", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[25].regs["[ ecx ]"]) == "( [ ecx ] + edx )"
+"""
 
+"""     
 class ROPChainTestCase1(unittest.TestCase):
     def setUp(self):
         gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"ebx, eax"}, {"mnemonic":"ret", "op_str": ""}], "vaddr":1}
@@ -186,6 +184,7 @@ class ROPChainTestCase1(unittest.TestCase):
         self.gadgets21 = [gadget23, gadget24]
         self.gadgets22 = [gadget25]
 
+   
     def testCOP(self):
 
         self.rop = ROPChain(BinaryStub(), self.gadgets17, False, 2)
@@ -201,6 +200,7 @@ class ROPChainTestCase1(unittest.TestCase):
         self.rop = ROPChain(BinaryStub(), self.gadgets20, False, 2)
         res = list(self.rop.start({"ebx": Exp("ecx")}))
         assert len(res) == 1 and res[0] == ["0xd", "0x16"]
+        
 """
 
 if __name__ == "__main__":

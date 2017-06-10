@@ -402,10 +402,7 @@ class ROPChain:
                 print "invalid expression"
                 return self.chained
         print "[in ROPChain.start()]---------------"
-        if len(self.chained) < 2:
-            print len(self.chained), " gadget chain found"
-        else:
-            print len(self.chained), " gadget chains found"
+        print len(self.chained), " gadget chain(s) found"
 
         for i, each in enumerate(self.chained):
             print "+ Gadget chain No. ", i, ":"
@@ -966,6 +963,9 @@ class ROPChain:
         #    eax = ebx & ecx, eax depends on ebx False, eax depends on ecx False
         if len(reg) == 2 or len(target) == 2:
             return False
+        #if len(reg) == 3 :
+        #    if reg[1] not in str(val):
+        #        return False
         if val.getCategory() == 1:
             exp = self.convert(val)
 

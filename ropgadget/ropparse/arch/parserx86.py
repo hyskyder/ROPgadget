@@ -49,8 +49,10 @@ class X86:
         "dh": ["edx $ 8 : 15", "edx = ( edx $ 16 : 31 ) # dh # ( edx $ 0 : 7 )", 8],
         "dl": ["edx $ 0 : 7", "edx = ( edx $ 8 : 31 ) # dl", 8],
     }
+    # Instructions that will crash the program
+    CrashIns = ["in", "out", "outsd"]
     # Instructions that can be bypassed (no need to parse)
-    ## TODO
+    BypassableIns = ["int1", "nop"]
     # Instructions that modifty the execution path
     Control = ["ret", "iret", "int", "into", "enter", "leave", "call", "jmp", "ja", "jae", "jb", "jbe", "jc", "je",
                "jnc", "jne", "jnp", "jp", "jg", "jge", "jl", "jle", "jno", "jns", "jo", "js"]
@@ -129,11 +131,14 @@ class X86:
         # segment
         # others
         "lea": [2, ["operand1 = & operand2"], []],
-        "nop": [0, [], []]
+        "nop": [0, [], []],
+        "int": [0, [], []],
+        "int1": [0, [], []]
     }
 
 
 class ROPParserX86:
+    parse_stat={}
     def __init__(self, gadgets, mode):
         self.gadgets = gadgets
         self.addrs = dict()
@@ -164,6 +169,8 @@ class ROPParserX86:
             X86.insn.update({k: v})
 
     def parse(self):
+        self.parse_stat["crash_gadgets"] = 0
+        self.parse_stat["failed_gadgets"] = 0
         formulas = []
         for gadget in self.gadgets:
             self.memLoc = []
@@ -172,7 +179,6 @@ class ROPParserX86:
             regs = self.parseInst(regs, gadget["insns"], 0)
             if len(regs) == 0:
                 print "[Warn] Parser failed to parse the gadget addr=" + str(hex(gadget["vaddr"]))
-                # gadget cannot parsed
                 continue
             formulas.append(Semantic(regs, gadget["vaddr"], self.memLoc, self.writeMem))
             self.addrs.update({hex(gadget["vaddr"]).replace("L", ""): gadget["insns"]})
@@ -191,9 +197,16 @@ class ROPParserX86:
         prefix = insts[i]["mnemonic"]
         op_str = insts[i]["op_str"].replace("*", " * ")
 
+        if prefix in X86.CrashIns:
+            print "(CrashIns)",
+            return {}
+
         if prefix not in X86.insn.keys():
             # unsupported ins
             print "[Warn] Skip Unsupported ins: " + prefix
+            return self.parseInst(regs, insts, i + 1)
+
+        if prefix in X86.BypassableIns:
             return self.parseInst(regs, insts, i + 1)
 
         ins = X86.insn.get(prefix)
@@ -218,6 +231,9 @@ class ROPParserX86:
                         ssp = Exp(ssp, "+", operand1)
                     regs.update({self.sp: ssp})
                 return regs
+            elif prefix in ["int"]:
+                print "(int unsupported)",
+                return {}
             else:
                 # handle jmp
                 operand1 = Exp.parseOperand(op_str.split(" ")[0], regs, self.Tregs)
@@ -240,15 +256,15 @@ class ROPParserX86:
             if ins[0] == 1:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
                 if operand1 is None:
-                    print "[Warn] @235 Something wrong when parse: " + prefix + " " + op_str
-                    return []
+                    print "[Warn] Discarded Gadget! @235 Something wrong when parse: " + prefix + " " + op_str
+                    return {}
                 operands.update({"operand1": operand1})
             elif ins[0] == 2:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
                 operand2 = Exp.parseOperand(op_str.split(", ")[1], regs, self.Tregs)
                 if operand1 is None or operand2 is None:
                     print "[Warn] Discarded Gadget! Something wrong (Probably multiple memory writes but with different length ) when parse: " + prefix + " " + op_str
-                    return []
+                    return {}
                 operands.update({"operand1": operand1})
                 operands.update({"operand2": operand2})
             if prefix != "lea" and "ptr" in op_str and (operand1.getCategory() == 3 or operand2.getCategory() == 3):

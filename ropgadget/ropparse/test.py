@@ -334,6 +334,7 @@ class ROPChainTestCase1(unittest.TestCase):
         assert len(res) == 1 and res[0] == ["0xf", "0x3"]
 
     def testStack(self):
+
         ''' FIXME
         self.rop = ROPChain(BinaryStub(), self.gadgets9, False, 2)
         res = list(self.rop.start({"eax": "stack"}))
