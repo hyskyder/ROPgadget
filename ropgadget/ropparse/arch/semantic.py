@@ -57,11 +57,10 @@ class Semantic:
         return deepcopy(self.addrs)
 
     def __str__(self):
-        string = ""
-        for i in range(len(self.addrs)):
-            string += (self.addrs[i]) + "\n" 
-
-        return string
+        #string = ""
+        #for i in range(len(self.addrs)):
+        #    string += (self.addrs[i]) + "\n"
+        return " -> ".join(self.addrs)
 
     def __eq__(self, other):
         if self.deepth != other.deepth:

@@ -29,7 +29,7 @@ class TryLibcGadgetFile(unittest.TestCase):
         gdt={"insns": insnslist, "vaddr": int(addr_hex,16)}
         return gdt
 
-    def test_Readfile(self):
+    def ReadGdtFile(self):
         print ""
         with open('libc.BBB-CFI-pass.log') as fp:
             for line in fp:
@@ -38,12 +38,26 @@ class TryLibcGadgetFile(unittest.TestCase):
                 self.gdt_pool.append(self.gen_gadget(addr,inst_list))
                 if addr == "0x0017176a":
                     break
-        pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(self.gdt_pool)
-        for gdt in self.gdt_pool:
-            print hex(gdt["vaddr"])
+        print "Num loaded Gadgets = " + str(len(self.gdt_pool))
+        #pp = pprint.PrettyPrinter(indent=4)
+        #pp.pprint(self.gdt_pool)
+        #for gdt in self.gdt_pool:
+        #    print hex(gdt["vaddr"])
 
-                
+    def setUp(self):
+        self.ReadGdtFile()
+
+    def test_tryParse(self):
+        parser = ROPParserX86(self.gdt_pool, BinaryStub().getArchMode()) 
+        semantic_list = parser.parse()
+        for item in semantic_list:
+            print item
+
+    def xxx(self):
+        self.rop = ROPChain(BinaryStub(), self.gadgets17, False, 2)
+        res = list(self.rop.start({"ebx": Exp.ExpL(32, 1)}))
+        assert len(res) == 1 and res[0] == ["0xd", "0x13"]
+        print "res=" + str(res) 
 
 """
 class ParserX86TestCase2(unittest.TestCase):

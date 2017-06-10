@@ -173,6 +173,10 @@ class ROPParserX86:
 
 
     def parseInst(self, regs, insts, i):
+        ## Recursive function, insts should be consistent with all iterations
+        ## regs : unkonwn
+        ## insts : the gadget pool
+        ## i : index of the list *insts* (i.e. the index of gadget in the gadget pool)
         if i >= len(insts):
             return regs
 
