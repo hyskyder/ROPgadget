@@ -23,15 +23,18 @@ class Semantic:
             self.regs.update({k:v})
 
     def chain(self, semantic): 
-        #print "chaing two semantic ........................."
         #print self, semantic
         if semantic is None:
             return
+        
+        ####### Replacing the following
+        #temp = []
+        #temp.extend(semantic.addrs)
+        #temp.extend(self.addrs)
+        #self.addrs = temp
+        ####### By:
+        self.addrs = semantic.addrs + self.addrs
         # all the gadgets addrs
-        temp = []
-        temp.extend(semantic.addrs)
-        temp.extend(self.addrs)
-        self.addrs = temp
 
         for k,v in self.regs.items(): 
             t = deepcopy(v)

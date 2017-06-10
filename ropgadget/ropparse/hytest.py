@@ -146,7 +146,7 @@ class ROPChainTestCase1(unittest.TestCase):
         self.rop = ROPChain(BinaryStub(), self.gadgets17, False, 2)
         res = list(self.rop.start({"ebx": Exp.ExpL(32, 1)}))
         assert len(res) == 1 and res[0] == ["0xd", "0x13"]
-        print "res=" + str(res)
+        print "res=" + str(res)	
 
 
         self.rop = ROPChain(BinaryStub(), self.gadgets18, False, 2)

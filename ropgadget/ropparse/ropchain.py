@@ -413,9 +413,10 @@ class ROPChain:
             self.printGadget(addr)
 
     def printGadget(self, addr):
-        print "addr=", addr
+        #print "addr=", addr
+        print str(self.semantics[addr]) + ":"
         print self.parser.addrs[addr]
-        print "semantics[addr]=", self.semantics[addr]
+        
 
     def findConstant(self, reserve, reg):
         number = set()

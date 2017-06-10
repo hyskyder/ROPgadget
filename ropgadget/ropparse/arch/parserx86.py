@@ -166,7 +166,7 @@ class ROPParserX86:
                 # gadget cannot parsed
                 continue
             formulas.append(Semantic(regs, gadget["vaddr"], self.memLoc, self.writeMem))
-            self.addrs.update({hex(gadget["vaddr"]).replace("L",""):gadget["insns"]})
+            self.addrs.update({ hex(gadget["vaddr"]).replace("L","") : gadget["insns"] })
         print "================================="
         print "parsex86: gadgets parsed = ", len(formulas)
         return formulas
