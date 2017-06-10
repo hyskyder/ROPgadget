@@ -4,6 +4,7 @@ from arch.parserx86 import *
 from arch.expression import *
 from arch.semantic import *
 from ropchain import *
+import pprint
 #import cProfile, pstats, StringIO
 
 class BinaryStub():
@@ -16,7 +17,35 @@ class BinaryStub():
     def getArchMode(self):
         return CS_MODE_32
 
+class TryLibcGadgetFile(unittest.TestCase):
+    gdt_pool=[]
 
+    def gen_gadget(self,addr_hex,inst_list):
+        insnslist=[]
+        for inst_str in inst_list:
+            splt = inst_str.split(" ", 1)
+            item={"mnemonic": splt[0], "op_str": splt[1] if len(splt)>1 else ""}
+            insnslist.append(item)
+        gdt={"insns": insnslist, "vaddr": int(addr_hex,16)}
+        return gdt
+
+    def test_Readfile(self):
+        print ""
+        with open('libc.BBB-CFI-pass.log') as fp:
+            for line in fp:
+                addr=line[0:10]
+                inst_list=(line[13:-1]).split(" ; ")
+                self.gdt_pool.append(self.gen_gadget(addr,inst_list))
+                if addr == "0x0017176a":
+                    break
+        pp = pprint.PrettyPrinter(indent=4)
+        pp.pprint(self.gdt_pool)
+        for gdt in self.gdt_pool:
+            print hex(gdt["vaddr"])
+
+                
+
+"""
 class ParserX86TestCase2(unittest.TestCase):
     def setUp(self):
         gadget1 = {"insns":[{"mnemonic":"mov", "op_str":"eax, 1"}], "vaddr":1}
@@ -146,7 +175,7 @@ class ROPChainTestCase1(unittest.TestCase):
         self.rop = ROPChain(BinaryStub(), self.gadgets17, False, 2)
         res = list(self.rop.start({"ebx": Exp.ExpL(32, 1)}))
         assert len(res) == 1 and res[0] == ["0xd", "0x13"]
-        print "res=" + str(res)	
+        print "res=" + str(res) 
 
 
         self.rop = ROPChain(BinaryStub(), self.gadgets18, False, 2)
@@ -156,6 +185,7 @@ class ROPChainTestCase1(unittest.TestCase):
         self.rop = ROPChain(BinaryStub(), self.gadgets20, False, 2)
         res = list(self.rop.start({"ebx": Exp("ecx")}))
         assert len(res) == 1 and res[0] == ["0xd", "0x16"]
+"""
 
 if __name__ == "__main__":
     unittest.main(verbosity=10)
