@@ -60,6 +60,7 @@ class Semantic:
         #string = ""
         #for i in range(len(self.addrs)):
         #    string += (self.addrs[i]) + "\n"
+        #return string
         return " -> ".join(self.addrs)
 
     def __eq__(self, other):
