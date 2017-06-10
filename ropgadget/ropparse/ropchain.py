@@ -295,6 +295,7 @@ class ROPChain:
         print "  search <register> stack\t\tSearching gadgets chains that pop value from stack to this register"
         print "  search mem <address> <register>\tSearching gadgets chains that write to memory address with this register"
         print "  reserve <register> <register>\t\tReserve registers for searching next time (reset automatically after each search)"
+        print "  print \t\t\tPrint gadgets (??)"
         print "  quit \t\t\t\t\tQuit"
         print ""
         print "examples:"
@@ -344,8 +345,10 @@ class ROPChain:
         elif string.split()[0] == "print" or string.split()[0] == "p":
             reg = string.split()[1]
             if reg == "mem":
+                print "[Warn] Unimplemented yet."
                 return 0
             elif reg == "cop":
+                print "[Warn] Unimplemented yet."
                 return 0
             else:
                 if reg in self.rop.keys():
