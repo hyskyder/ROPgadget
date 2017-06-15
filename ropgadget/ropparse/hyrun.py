@@ -36,33 +36,18 @@ if __name__ == "__main__":
     gdt_pool=[]
     ReadGdtFile(gdt_pool)
     chaintool = ROPChain(BinaryStub(), gdt_pool, False, 1)
-    """
-    chaintool.process_cmd("set length 1")
-    for reg in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
-        print "\n ===============================  " + reg
-        chaintool.start({reg: Exp.ExpL(32, 1)})
 
-    chaintool.process_cmd("set length 2")
-    for reg in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
-        print "\n ===============================  " + reg
-        chaintool.start({reg: Exp.ExpL(32, 1)})
+    #for reg in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
+     #   for length in ["1","2","3","4","5","6"]:
+      #      chaintool.process_cmd("set length"+length)
+        
+            #print "\n === Search Stack =================  " + reg
+            #chaintool.process_cmd("search "+reg+" stack")
 
-    chaintool.process_cmd("set length 3")
-    for reg in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
-        print "\n ===============================  " + reg
-        chaintool.start({reg: Exp.ExpL(32, 1)})
-    """
-    chaintool.process_cmd("set length 1")
-    for reg in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
-        print "\n ===============================  " + reg
-        chaintool.start({reg: Exp(Exp(reg), "+", Exp.ExpL(32, 1))})
-
-    chaintool.process_cmd("set length 2")
-    for reg in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
-        print "\n ===============================  " + reg
-        chaintool.start({reg: Exp(Exp(reg), "+", Exp.ExpL(32, 1))})
-
-    chaintool.process_cmd("set length 3")
-    for reg in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
-        print "\n ===============================  " + reg
-        chaintool.start({reg: Exp(Exp(reg), "+", Exp.ExpL(32, 1))})
+    #for reg in ["al", "bl", "cl", "dl"]:
+    #for reg in ["(eax $ 8 : 1)", "(ebx $ 8 : 1)"]:#, "ecx $ 8 : 1", "edx $ 8 : 1
+    for regstr in ["eax", "ebx", "ecx", "edx"]:
+        for length in ["1","2","3","4","5","6"]:
+            chaintool.process_cmd("set length"+length)
+            print "\n === reg = reg + const =================  " + regstr
+            chaintool.start({regstr: Exp(Exp(regstr), "+", Exp.ExpL(32, 1))})

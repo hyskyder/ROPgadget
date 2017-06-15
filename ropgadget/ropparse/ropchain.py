@@ -53,6 +53,7 @@ class ROPChain:
                 for reg in X86.regs32:
                     ref = BitVec(reg, 32)
                     self.z3Regs.update({reg: ref})
+
             else:
                 Exp.defaultLength = 64
                 self.z3Mem = Array('Mem', BitVecSort(64), BitVecSort(8))

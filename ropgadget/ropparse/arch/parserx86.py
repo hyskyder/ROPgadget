@@ -50,7 +50,7 @@ class X86:
         "dl": ["edx $ 0 : 7", "edx = ( edx $ 8 : 31 ) # dl", 8],
     }
     # Instructions that will crash the program
-    CrashIns = ["in", "out", "outsd","sti"]
+    CrashIns = ["in", "out", "outsd", "sti"]
     # Instructions that can be bypassed (no need to parse)
     BypassableIns = ["int1", "nop"]
     # Instructions that modifty the execution path
