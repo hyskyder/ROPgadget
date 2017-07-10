@@ -22,7 +22,7 @@ from copy import deepcopy
 		Conditional-Expression:
 			Expression ? Expression : Expression;
 
-                A $ B : C is defined as take the Bth bit to Cth bit of A
+                A $ B : C is defined as take the Bth bit to Cth bit of A  #( Note: range: right-MSB 31 : 0 left-LSB  ; z3 also uses 31:0 )
                 A # B is defined as concat A and B
 '''
 class Exp:

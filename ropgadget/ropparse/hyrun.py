@@ -38,16 +38,35 @@ if __name__ == "__main__":
     chaintool = ROPChain(BinaryStub(), gdt_pool, False, 1)
 
     #for reg in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
+    # print "\n === Search Stack =================  " + reg
      #   for length in ["1","2","3","4","5","6"]:
       #      chaintool.process_cmd("set length"+length)
-        
-            #print "\n === Search Stack =================  " + reg
+
             #chaintool.process_cmd("search "+reg+" stack")
 
     #for reg in ["al", "bl", "cl", "dl"]:
     #for reg in ["(eax $ 8 : 1)", "(ebx $ 8 : 1)"]:#, "ecx $ 8 : 1", "edx $ 8 : 1
-    for regstr in ["eax", "ebx", "ecx", "edx"]:
-        for length in ["1","2","3","4","5","6"]:
-            chaintool.process_cmd("set length"+length)
-            print "\n === reg = reg + const =================  " + regstr
-            chaintool.start({regstr: Exp(Exp(regstr), "+", Exp.ExpL(32, 1))})
+
+    for regstr in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
+
+        for arithm in ["+", '-']:
+            for length in ["1", "2", "3", "4", "5", "6"]:
+                chaintool.process_cmd("set length" + length)
+                print "\n === reg = reg "+ arithm + " const =================  " + regstr
+                chaintool.start({regstr: Exp(Exp(regstr), arithm , Exp.ExpL(32, 1))})
+
+        for regstr2 in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
+
+            if regstr==regstr2:
+                continue
+
+            for length in ["1","2","3","4","5","6"]:
+                chaintool.process_cmd("set length"+length)
+                print "\n === reg = other_reg =================  " + regstr
+                chaintool.start({regstr: Exp(regstr2) })
+
+            for arithm in ["+", '-']:
+                for length in ["1", "2", "3", "4", "5", "6"]:
+                    chaintool.process_cmd("set length" + length)
+                    print "\n === "+ regstr + " = " +regstr +" "+ arithm + " " + regstr2 +"  =================  "
+                    chaintool.start({regstr: Exp(Exp(regstr), arithm, Exp(regstr2))})

@@ -54,6 +54,15 @@ class ROPChain:
                     ref = BitVec(reg, 32)
                     self.z3Regs.update({reg: ref})
 
+                """ #FIXME
+                for regmid in ['a', 'b', 'c', 'd']:
+                    ref = Extract(15,0,self.z3Regs['e'+regmid+"x"])
+                    self.z3Regs.update({regmid+"x": ref})
+                    ref = Extract(15, 8, self.z3Regs['e' + regmid + "x"])
+                    self.z3Regs.update({regmid + "h": ref})
+                    ref = Extract(7, 0, self.z3Regs['e' + regmid + "x"])
+                    self.z3Regs.update({regmid + "l": ref})
+                """
             else:
                 Exp.defaultLength = 64
                 self.z3Mem = Array('Mem', BitVecSort(64), BitVecSort(8))
@@ -381,7 +390,7 @@ class ROPChain:
             return 0
         return 0
 
-    @timing
+    #@timing
     def start(self, regs):
         self.chained = []
         before = []
