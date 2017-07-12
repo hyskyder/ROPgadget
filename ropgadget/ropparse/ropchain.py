@@ -12,13 +12,16 @@ import logging
 
 class ROPChain:
     def __init__(self, binary, gadgets, opt, deepth=0):
+        # binary
         self.binary = binary
         # gadgets is categories as { reg : { cat : [] } }
         self.rop = {}
         # register dependency graph, { reg: { reg : [] } }
         self.dependency = {}
         # gadgets that should be discarded
-        self.aba = []
+        self.discarded = []
+        # gadgets that have two possible next
+        self.conditionaleip = []
         # gadgets that read undefined mem, should be careful
         self.readMem = {}
         # gadgets that write to mem { mem: [] }
@@ -912,17 +915,16 @@ class ROPChain:
         cat[reg][val].append(semantic)
 
     def category(self):
-        cond = []
         read = set()
         write = set()
         for addr, semantic in self.semantics.items():
             if len(semantic.regs[self.ip].getRegs()) == 0:
                 # constant return address, discard
-                self.aba.append(semantic)
+                self.discarded.append(semantic)
                 continue
             elif semantic.regs[self.ip].isCond():
                 # conditional jmp
-                cond.append(semantic)
+                self.conditionaleip.append(semantic)
                 continue
 
             if len(semantic.memLoc) > 0:

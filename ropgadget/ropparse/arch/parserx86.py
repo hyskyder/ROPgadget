@@ -169,7 +169,7 @@ class ROPParserX86:
             X86.insn.update({k: v})
 
     def parse(self):
-        self.parse_stat["crash_gadgets"] = 0
+        #self.parse_stat["crash_gadgets"] = 0
         self.parse_stat["failed_gadgets"] = 0
         formulas = []
         for gadget in self.gadgets:
@@ -179,6 +179,7 @@ class ROPParserX86:
             regs = self.parseInst(regs, gadget["insns"], 0)
             if len(regs) == 0:
                 print "[Warn] Parser failed to parse the gadget addr=" + str(hex(gadget["vaddr"]))
+                self.parse_stat["failed_gadgets"]=self.parse_stat["failed_gadgets"]+1
                 continue
             formulas.append(Semantic(regs, gadget["vaddr"], self.memLoc, self.writeMem))
             self.addrs.update({hex(gadget["vaddr"]).replace("L", ""): gadget["insns"]})
