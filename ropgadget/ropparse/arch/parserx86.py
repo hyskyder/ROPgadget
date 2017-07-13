@@ -50,12 +50,14 @@ class X86:
         "dl": ["edx $ 0 : 7", "edx = ( edx $ 8 : 31 ) # dl", 8],
     }
     # Instructions that will crash the program
-    CrashIns = ["in", "out", "outsd", "sti"]
+    CrashIns = ["in", "insb", "insd", "out", "outsd", "outsb", "sti", "iretd", "int"]
     # Instructions that can be bypassed (no need to parse)
     BypassableIns = ["int1", "nop"]
     # Instructions that modifty the execution path
-    Control = ["ret", "iret", "int", "into", "enter", "leave", "call", "jmp", "ja", "jae", "jb", "jbe", "jc", "je",
-               "jnc", "jne", "jnp", "jp", "jg", "jge", "jl", "jle", "jno", "jns", "jo", "js"]
+    Control = ["ret", "iret", "into", "enter", "leave", "call", "jmp", "ljmp"
+               "ja", "jae", "jb", "jbe", "jc", "je",
+               "jnc", "jne", "jnp", "jp", "jg", "jge", "jl", "jle", "jno", "jns", "jo", "js", "jecxz"
+            ]
     insn = {
         # data transfer
         "mov": [2, ["operand1 = operand2"], []],
@@ -99,9 +101,10 @@ class X86:
         # control transfer
         "ret": [1, [], ["* ssp"]],
 
-        "call": [1, [], ["* operand1"]],
+        "call": [1, [], ["operand1"]],
 
-        "jmp": [1, [], ["* operand1"]],
+        "jmp": [1, [], ["operand1"]],
+        #"ljmp": [1, [], ["operand1"]], #unimplemented
         "ja": [1, [], ["( ( CF == 0 ) & ( ZF == 0 ) ) ? * operand1 : 0"]],
         "jae": [1, [], ["CF == 0 ? * operand1 : 0"]],
         "jb": [1, [], ["CF == 1 ? * operand1 : 0"]],
@@ -132,7 +135,7 @@ class X86:
         # others
         "lea": [2, ["operand1 = & operand2"], []],
         "nop": [0, [], []],
-        "int": [0, [], []],
+        #"int": [0, [], []], #Unsupported
         "int1": [0, [], []]
     }
 
@@ -213,7 +216,8 @@ class ROPParserX86:
         ins = X86.insn.get(prefix)
         if prefix in X86.Control:
             if (i + 1 != len(insts)):
-                print "[Warn] Control ins ("+ prefix +") at middle ! Rest ins are ignored in this gadget."
+                print " ("+ prefix +") at middle ! ", # Rest ins are ignored in this gadget."
+                return {}
             # control transfer ins, end of gadget
             if prefix in ["ret", "call"]:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
@@ -222,7 +226,7 @@ class ROPParserX86:
                     dst = dst.binding({"operand1": Exp.ExpL(Exp.defaultLength, 0)})
                 else:
                     dst = dst.binding({"operand1": operand1})
-                dst = dst.binding(regs)
+                dst = dst.binding(regs)  #TODO:this is a bug?
                 regs.update({self.ip: dst})
                 # only ret inst modifies stackpointer
                 if prefix == "ret":
@@ -233,16 +237,20 @@ class ROPParserX86:
                     regs.update({self.sp: ssp})
                 return regs
             elif prefix in ["int"]:
-                print "(int unsupported)",
+                print "(int unsupported)", #TODO
                 return {}
             else:
                 # handle jmp
-                operand1 = Exp.parseOperand(op_str.split(" ")[0], regs, self.Tregs)
+                operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
+                if operand1 is None :
+                    print "[Warn] Something wrong ! when parse: " + prefix + " " + op_str,  #TODO:(Probably multiple memory writes but with different length )
+                    return {}
                 dst = Exp.parseExp(ins[2][0].split())
                 dst = dst.binding({"operand1": operand1})
-                dst = dst.binding(regs)
+                # dst = dst.binding(regs) #TODO:this is a bug?
                 regs.update({self.ip: dst})
                 return regs
+
             #else:
             #    raise RuntimeError("Program should never get here. [data: prefix="+ prefix+"]")
         else:
@@ -264,7 +272,7 @@ class ROPParserX86:
                 operand1 = Exp.parseOperand(op_str.split(", ")[0], regs, self.Tregs)
                 operand2 = Exp.parseOperand(op_str.split(", ")[1], regs, self.Tregs)
                 if operand1 is None or operand2 is None:
-                    print "[Warn] Discarded Gadget! Something wrong (Probably multiple memory writes but with different length ) when parse: " + prefix + " " + op_str
+                    print "[Warn] Something wrong ! when parse: " + prefix + " " + op_str,  #TODO:(Probably multiple memory writes but with different length )
                     return {}
                 operands.update({"operand1": operand1})
                 operands.update({"operand2": operand2})

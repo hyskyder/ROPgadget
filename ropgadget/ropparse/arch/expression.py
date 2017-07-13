@@ -92,7 +92,7 @@ class Exp:
             if exp.op == '*':
                 return "[ " + self.showLength(exp.left) + " ]-" + str(exp.length)
             return exp.op +"( " + self.showLength(exp.left) + " " + " )-" + str(exp.length)
-        return self.showLength(exp.left) +"-" + str(exp.length)
+        return self.showLength(exp.left) + "-" + str(exp.length)
 
     def __str__(self):
         if self.condition is not None:
@@ -346,6 +346,7 @@ class Exp:
             exp = Exp(Exp.parseExp(s.split()), "*")
             if str(exp) in regs.keys():
                 if isinstance(regs[str(exp)], Exp) and regs[str(exp)].length != size:
+                    # error
                     return None
                 exp = regs[str(exp)]
             exp.length = size

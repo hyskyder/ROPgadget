@@ -124,7 +124,7 @@ class ExpTestCase(unittest.TestCase):
         for key, val in exp2.items():
             assert key == "operand1" and str(val) == "( ( 1 $ 0 : 7 ) + 1 )" and val.length == 8
             # concat al back to eax
-            temp = Exp.parse("eax = ( eax $ 8 : 31 ) # al", {"al":val, "eax":exp["operand1"]})
+            temp = Exp.parse("eax = ( eax $ 8 : 31 ) # al", {"al":val, "eax": exp["operand1"]})
             for k, v in temp.items():
                 v = v.binding({"al":val})
                 assert v.length == 32 and str(v) == "( ( 1 $ 8 : 31 ) # ( ( 1 $ 0 : 7 ) + 1 ) )"
@@ -162,8 +162,8 @@ class ParserX86TestCase2(unittest.TestCase):
         gadget9 = {"insns":[{"mnemonic":"inc", "op_str":"ecx"}], "vaddr":9}
         gadget10 = {"insns":[{"mnemonic":"dec", "op_str":"ecx"}], "vaddr":10}
         gadget11 = {"insns":[{"mnemonic":"neg", "op_str":"ecx"}], "vaddr":11}
-        gadget12 = {"insns":[{"mnemonic":"call", "op_str": "eax"}], "vaddr":12}
-        gadget13 = {"insns":[{"mnemonic":"jmp", "op_str": "eax"}], "vaddr":13}
+        gadget12 = {"insns":[{"mnemonic":"call", "op_str": "dword ptr [eax]"}], "vaddr":12}
+        gadget13 = {"insns":[{"mnemonic":"jmp", "op_str": "dword ptr [eax]"}], "vaddr":13}
         gadget14 = {"insns":[{"mnemonic":"je", "op_str": "eax"}], "vaddr":14}
         gadget15 = {"insns":[{"mnemonic":"and", "op_str":"ecx, edx"}], "vaddr":15}
         gadget16 = {"insns":[{"mnemonic":"or", "op_str":"ecx, edx"}], "vaddr":16}
@@ -177,8 +177,13 @@ class ParserX86TestCase2(unittest.TestCase):
         gadget24 = {"insns":[{"mnemonic":"xchg", "op_str":"eax, ebx"}], "vaddr":24}
         gadget25 = {"insns":[{"mnemonic":"xchg", "op_str":"ax, bx"}], "vaddr":25}
         gadget26 = {"insns":[{"mnemonic":"add", "op_str":"byte ptr [ecx], edx"}], "vaddr":26}
+        gadget27 = {"insns":[{"mnemonic":"call", "op_str": "eax"}], "vaddr":27}
+        gadget28 = {"insns":[{"mnemonic":"jmp", "op_str": "eax"}], "vaddr":28}
 
-        gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5, gadget6, gadget7, gadget8, gadget9, gadget10, gadget11, gadget12, gadget13, gadget14, gadget15, gadget16, gadget17, gadget18, gadget19, gadget20, gadget21, gadget22, gadget23, gadget24, gadget25, gadget26]
+
+        gadgets = [gadget1, gadget2, gadget3, gadget4, gadget5, gadget6, gadget7, gadget8, gadget9, gadget10,
+                   gadget11, gadget12, gadget13, gadget14, gadget15, gadget16, gadget17, gadget18, gadget19, gadget20,
+                   gadget21, gadget22, gadget23, gadget24, gadget25, gadget26, gadget27, gadget28]
         self.parser = ROPParserX86(gadgets, BinaryStub().getArchMode()) 
         self.formula = self.parser.parse()
 
@@ -209,6 +214,8 @@ class ParserX86TestCase2(unittest.TestCase):
         assert set(self.formula[23].regs) == set(['esp', 'eax', 'ebx']) and str(self.formula[23].regs["eax"]) == "ebx" and str(self.formula[23].regs["ebx"]) == "eax" 
         assert set(self.formula[24].regs) == set(['esp', 'eax', 'ebx']) and str(self.formula[24].regs["eax"]) == "( ( eax $ 16 : 31 ) # ( ebx $ 0 : 15 ) )" and str(self.formula[24].regs["ebx"]) == "( ( ebx $ 16 : 31 ) # ( eax $ 0 : 15 ) )" 
         assert set(self.formula[25].regs.keys()) == set(["esp", "[ ecx ]", "AF", "CF", "ZF", "OF", "SF","PF"]) and str(self.formula[25].regs["[ ecx ]"]) == "( [ ecx ] + edx )"
+        assert len(self.formula[26].regs) == 2 and str(self.formula[26].regs["eip"]) == "eax" and str(self.formula[26].regs["esp"]) == "esp"
+        assert len(self.formula[27].regs) == 2 and str(self.formula[27].regs["eip"]) == "eax" and str(self.formula[27].regs["esp"]) == "esp"
 
 class ROPChainTestCase1(unittest.TestCase):
     def setUp(self):
