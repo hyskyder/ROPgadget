@@ -336,6 +336,8 @@ class ROPChain:
             elif string.split()[1] == "number":
                 self.default = int(string.split()[2])
                 print "set wanted gadget number to ", self.default
+            else:
+                print "[ERROR] Unknown set:" + string.split()[1]
             return 0
         elif string.split()[0] == "addr":
             if "0x" in string.split()[1]:
@@ -370,21 +372,7 @@ class ROPChain:
                             print s.getAddress()[0], reg, " => ", str(s.regs[reg])
 
         elif string.split()[0] == "search":
-            regs = {}
-            reg = string.split()[1]
-            tokens = string.split()[2:]
-            if reg == "mem":
-                val = tokens
-            elif len(tokens) == 0:
-                val = None
-            elif len(tokens) == 1 and tokens[0] == "stack":
-                val = "stack"
-            else:
-                val = Exp.parseExp(tokens)
-                if not isinstance(val, Exp):
-                    val = Exp(val)
-                val.length = Exp.defaultLength
-            regs.update({reg: val})
+            regs=self.parse_search_string(string)
             self.start(regs)
             self.reserve.clear()
         else:
@@ -392,6 +380,25 @@ class ROPChain:
             self.help()
             return 0
         return 0
+
+    def parse_search_string(self,str):
+        #### str="search [mem] <target> <expr/stack> "
+        regs = {}
+        reg = str.split()[1]
+        tokens = str.split()[2:]
+        if reg == "mem":
+            val = tokens
+        elif len(tokens) == 0:
+            val = None
+        elif len(tokens) == 1 and tokens[0] == "stack":
+            val = "stack"
+        else:
+            val = Exp.parseExp(tokens)
+            if not isinstance(val, Exp):
+                val = Exp(val)
+            val.length = Exp.defaultLength
+        regs.update({reg: val})
+        return regs
 
     #@timing
     def start(self, regs):
@@ -498,6 +505,8 @@ class ROPChain:
                                 if self.overlap(reserve, semantic.regs.keys()):
                                     continue
                                 temp = self.addToChain(before, temp, semantic, reg, self.deepth, r)
+                                if temp is None:
+                                    break
                                 chains.append(temp)
                                 if len(chains) >= self.default:
                                     return True

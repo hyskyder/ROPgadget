@@ -56,6 +56,24 @@ class TryLibcGadgetFile(unittest.TestCase):
 
 
 
+class ParserX86TestCase2(unittest.TestCase):
+    def setUp(self):
+        self.gadgets=[]
+        self.gadgets.append({"insns": [{"mnemonic":"pop", "op_str":"edi"},
+                                  {"mnemonic":"pop", "op_str":"ebx"},
+                                  {"mnemonic":"pop", "op_str":"eax"},
+                                  {"mnemonic":"jmp", "op_str":"eax"}
+                                 ], "vaddr":1})
+        self.gadgets.append({"insns": [{"mnemonic":"sub", "op_str":"esp, edi"},
+                                  {"mnemonic":"call","op_str":"dword ptr [ebx]"}
+                                 ], "vaddr":0x10})
+
+    def test_chain(self):
+        chainer = ROPChain(BinaryStub(), self.gadgets, False, 2)
+        res = list(chainer.start(chainer.parse_search_string("search esp esp - edi")))
+        assert len(res) == 1 and res[0] == ["0x1", "0x10"]
+        print "res=" + str(res) 
+
 """
 
 class ParserX86TestCase2(unittest.TestCase):
