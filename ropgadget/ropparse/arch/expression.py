@@ -22,7 +22,7 @@ from copy import deepcopy
 		Conditional-Expression:
 			Expression ? Expression : Expression;
 
-                A $ B : C is defined as take the Bth bit to Cth bit of A
+                A $ B : C is defined as take the Bth bit to Cth bit of A  #( Note: range: right-MSB 31 : 0 left-LSB  ; z3 also uses 31:0 )
                 A # B is defined as concat A and B
 '''
 class Exp:
@@ -92,7 +92,7 @@ class Exp:
             if exp.op == '*':
                 return "[ " + self.showLength(exp.left) + " ]-" + str(exp.length)
             return exp.op +"( " + self.showLength(exp.left) + " " + " )-" + str(exp.length)
-        return self.showLength(exp.left) +"-" + str(exp.length)
+        return self.showLength(exp.left) + "-" + str(exp.length)
 
     def __str__(self):
         if self.condition is not None:
@@ -346,6 +346,7 @@ class Exp:
             exp = Exp(Exp.parseExp(s.split()), "*")
             if str(exp) in regs.keys():
                 if isinstance(regs[str(exp)], Exp) and regs[str(exp)].length != size:
+                    # error
                     return None
                 exp = regs[str(exp)]
             exp.length = size

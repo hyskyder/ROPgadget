@@ -5,20 +5,23 @@ from arch.semantic import Semantic
 from arch.expression import Exp
 from capstone import *
 from copy import deepcopy
-from z3 import *
+from z3.z3 import *
 import time
 import logging
 
 
 class ROPChain:
     def __init__(self, binary, gadgets, opt, deepth=0):
+        # binary
         self.binary = binary
         # gadgets is categories as { reg : { cat : [] } }
         self.rop = {}
         # register dependency graph, { reg: { reg : [] } }
         self.dependency = {}
         # gadgets that should be discarded
-        self.aba = []
+        self.discarded = []
+        # gadgets that have two possible next
+        self.conditionaleip = []
         # gadgets that read undefined mem, should be careful
         self.readMem = {}
         # gadgets that write to mem { mem: [] }
@@ -53,6 +56,16 @@ class ROPChain:
                 for reg in X86.regs32:
                     ref = BitVec(reg, 32)
                     self.z3Regs.update({reg: ref})
+
+                """ #FIXME
+                for regmid in ['a', 'b', 'c', 'd']:
+                    ref = Extract(15,0,self.z3Regs['e'+regmid+"x"])
+                    self.z3Regs.update({regmid+"x": ref})
+                    ref = Extract(15, 8, self.z3Regs['e' + regmid + "x"])
+                    self.z3Regs.update({regmid + "h": ref})
+                    ref = Extract(7, 0, self.z3Regs['e' + regmid + "x"])
+                    self.z3Regs.update({regmid + "l": ref})
+                """
             else:
                 Exp.defaultLength = 64
                 self.z3Mem = Array('Mem', BitVecSort(64), BitVecSort(8))
@@ -295,6 +308,7 @@ class ROPChain:
         print "  search <register> stack\t\tSearching gadgets chains that pop value from stack to this register"
         print "  search mem <address> <register>\tSearching gadgets chains that write to memory address with this register"
         print "  reserve <register> <register>\t\tReserve registers for searching next time (reset automatically after each search)"
+        print "  print \t\t\tPrint gadgets (??)"
         print "  quit \t\t\t\t\tQuit"
         print ""
         print "examples:"
@@ -305,71 +319,88 @@ class ROPChain:
         print "  search mem eax ebx"
 
     def core(self):
-        self.help()
+        #self.help()
+        print "[Hello] ROPChain: input 'help' to get help."
         while True:
             print "================================================\n"
-            string = raw_input("Please enter command (help for usage):")
-            if string.split()[0] == "set":
-                if string.split()[1] == "length":
-                    self.deepth = int(string.split()[2])
-                    print "set searching deepth to ", self.deepth
-                elif string.split()[1] == "number":
-                    self.default = int(string.split()[2])
-                    print "set wanted gadget number to ", self.default
-                continue
-            elif string.split()[0] == "addr":
-                if "0x" in string.split()[1]:
-                    addr = (string.split()[1].lower())
-                else:
-                    addr = (hex(int(string.split()[1])))
-                if not addr in self.parser.addrs.keys():
-                    print "gadget of this address doesn't exist"
-                else:
-                    self.printGadget(addr)
-                continue
-            elif string == "help":
-                self.help()
-                continue
-            elif string.split()[0] == "reserve":
-                self.reserve = set(string.split()[1:])
-                continue
-            elif string == "quit":
-                break
-            elif string.split()[0] == "print" or string.split()[0] == "p":
-                reg = string.split()[1]
-                if reg == "mem":
-                    continue
-                elif reg == "cop":
-                    continue
-                else:
-                    if reg in self.rop.keys():
-                        for cat in self.rop[reg].keys():
-                            for s in self.rop[reg][cat]:
-                                print s.getAddress()[0], reg, " => ", str(s.regs[reg])
+            cmd = raw_input("Please enter command (help for usage):")
+            res = process_cmd(cmd)
+            if (res): break
 
-            elif string.split()[0] == "search":
-                regs = {}
-                reg = string.split()[1]
-                tokens = string.split()[2:]
-                if reg == "mem":
-                    val = tokens
-                elif len(tokens) == 0:
-                    val = None
-                elif len(tokens) == 1 and tokens[0] == "stack":
-                    val = "stack"
-                else:
-                    val = Exp.parseExp(tokens)
-                    if not isinstance(val, Exp):
-                        val = Exp(val)
-                    val.length = Exp.defaultLength
-                regs.update({reg: val})
-                self.start(regs)
-                self.reserve.clear()
+
+    def process_cmd(self,string):
+        if string.split()[0] == "set":
+            if string.split()[1] == "length":
+                self.deepth = int(string.split()[2])
+                print "set searching deepth to ", self.deepth
+            elif string.split()[1] == "number":
+                self.default = int(string.split()[2])
+                print "set wanted number of chains to ", self.default
             else:
-                print "what are you doing........"
-                continue
+                print "[ERROR] Unknown set:" + string.split()[1]
+            return 0
+        elif string.split()[0] == "addr":
+            if "0x" in string.split()[1]:
+                addr = (string.split()[1].lower())
+            else:
+                addr = (hex(int(string.split()[1])))
+            if not addr in self.parser.addrs.keys():
+                print "gadget of this address doesn't exist"
+            else:
+                self.printGadget(addr)
+            return 0
+        elif string == "help":
+            self.help()
+            return 0
+        elif string.split()[0] == "reserve":
+            self.reserve = set(string.split()[1:])
+            return 0
+        elif string == "quit":
+            return 1
+        elif string.split()[0] == "print" or string.split()[0] == "p":
+            reg = string.split()[1]
+            if reg == "mem":
+                print "[Warn] Unimplemented yet."
+                return 0
+            elif reg == "cop":
+                print "[Warn] Unimplemented yet."
+                return 0
+            else:
+                if reg in self.rop.keys():
+                    for cat in self.rop[reg].keys():
+                        for s in self.rop[reg][cat]:
+                            print s.getAddress()[0], reg, " => ", str(s.regs[reg])
 
-    @timing
+        elif string.split()[0] == "search":
+            regs=self.parse_search_string(string)
+            self.start(regs)
+            self.reserve.clear()
+        else:
+            print "[ERROR] Unrecognized Command."
+            self.help()
+            return 0
+        return 0
+
+    def parse_search_string(self,str):
+        #### str="search [mem] <target> <expr/stack> "
+        regs = {}
+        reg = str.split()[1]
+        tokens = str.split()[2:]
+        if reg == "mem":
+            val = tokens
+        elif len(tokens) == 0:
+            val = None
+        elif len(tokens) == 1 and tokens[0] == "stack":
+            val = "stack"
+        else:
+            val = Exp.parseExp(tokens)
+            if not isinstance(val, Exp):
+                val = Exp(val)
+            val.length = Exp.defaultLength
+        regs.update({reg: val})
+        return regs
+
+    #@timing
     def start(self, regs):
         self.chained = []
         before = []
@@ -390,14 +421,11 @@ class ROPChain:
             else:
                 print "invalid expression"
                 return self.chained
-        print "--------------------------------------"
-        if len(self.chained) < 2:
-            print len(self.chained), " gadget chain found"
-        else:
-            print len(self.chained), " gadget chains found"
+        print "[in ROPChain.start()]---------------"
+        print len(self.chained), " gadget chain(s) found"
 
         for i, each in enumerate(self.chained):
-            print "gadget chain number ", i, ":"
+            print "+ Gadget chain No. ", i, ":"
             self.printGadgets(each)
         return self.chained
 
@@ -406,9 +434,12 @@ class ROPChain:
             self.printGadget(addr)
 
     def printGadget(self, addr):
-        print addr
-        print self.parser.addrs[addr]
-        print self.semantics[addr]
+        #print "addr=", addr
+        print str(self.semantics[addr]) + ": ",
+        #print self.parser.addrs[addr]
+        for ins in self.parser.addrs[addr]:
+            print ins["mnemonic"]+' '+ins["op_str"]+';',
+        print " "
 
     def findConstant(self, reserve, reg):
         number = set()
@@ -474,6 +505,8 @@ class ROPChain:
                                 if self.overlap(reserve, semantic.regs.keys()):
                                     continue
                                 temp = self.addToChain(before, temp, semantic, reg, self.deepth, r)
+                                if temp is None:
+                                    break
                                 chains.append(temp)
                                 if len(chains) >= self.default:
                                     return True
@@ -741,7 +774,7 @@ class ROPChain:
                         # TODO, multiple regs
                         continue
                     self.solver = Solver()
-                    self.solver.set("soft_timeout", 1000)
+                    self.solver.set("timeout", 1000)
                     self.solver.add(ForAll(self.z3Regs[target], desired == self.convert(semantic.regs[reg])))
                     sat = self.solver.check()
                     if str(sat) == "sat":
@@ -785,7 +818,7 @@ class ROPChain:
                                 sexp = substitute(exp, (self.z3Regs[i], self.convert(semantic.regs[i])))
                                 ntarget = regs[0] if target == regs[1] else regs[1]
                                 self.solver = Solver()
-                                self.solver.set("soft_timeout", 1000)
+                                self.solver.set("timeout", 1000)
                                 self.solver.add(ForAll(self.z3Regs[reg], desired == self.convert(semantic.regs[i])))
                                 if str(self.solver.check()) != "sat":
                                     break
@@ -891,17 +924,16 @@ class ROPChain:
         cat[reg][val].append(semantic)
 
     def category(self):
-        cond = []
         read = set()
         write = set()
         for addr, semantic in self.semantics.items():
             if len(semantic.regs[self.ip].getRegs()) == 0:
                 # constant return address, discard
-                self.aba.append(semantic)
+                self.discarded.append(semantic)
                 continue
             elif semantic.regs[self.ip].isCond():
                 # conditional jmp
-                cond.append(semantic)
+                self.conditionaleip.append(semantic)
                 continue
 
             if len(semantic.memLoc) > 0:
@@ -954,6 +986,9 @@ class ROPChain:
         #    eax = ebx & ecx, eax depends on ebx False, eax depends on ecx False
         if len(reg) == 2 or len(target) == 2:
             return False
+        #if len(reg) == 3 :
+        #    if reg[1] not in str(val):
+        #        return False
         if val.getCategory() == 1:
             exp = self.convert(val)
 
@@ -968,13 +1003,13 @@ class ROPChain:
         else:
             exp = self.convert(val)
             self.solver = Solver()
-            self.solver.set("soft_timeout", 1000)
+            self.solver.set("timeout", 1000)
             self.solver.add(ForAll(self.z3Regs[target], exp == self.z3Regs[target]))
             sat = self.solver.check()
             if str(sat) == "sat":
                 return True
             self.solver = Solver()
-            self.solver.set("soft_timeout", 1000)
+            self.solver.set("timeout", 1000)
             self.solver.add(ForAll(self.z3Regs[target], exp == -self.z3Regs[target]))
             sat = self.solver.check()
             return str(sat) == "sat"
