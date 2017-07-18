@@ -324,7 +324,7 @@ class ROPChain:
         while True:
             print "================================================\n"
             cmd = raw_input("Please enter command (help for usage):")
-            res=process_cmd(cmd)
+            res = process_cmd(cmd)
             if (res): break
 
 
@@ -335,7 +335,7 @@ class ROPChain:
                 print "set searching deepth to ", self.deepth
             elif string.split()[1] == "number":
                 self.default = int(string.split()[2])
-                print "set wanted gadget number to ", self.default
+                print "set wanted number of chains to ", self.default
             else:
                 print "[ERROR] Unknown set:" + string.split()[1]
             return 0

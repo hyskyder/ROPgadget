@@ -37,10 +37,10 @@ if __name__ == "__main__":
     ReadGdtFile(gdt_pool)
     chaintool = ROPChain(BinaryStub(), gdt_pool, False, 1)
 
-    if 1:
+    if 0:
         for reg in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
             print "\n === Search Stack =================  " + reg
-            for length in ["1","2","3","4","5","6"]:
+            for length in ["1","2","3","4","5"]:
                 chaintool.process_cmd("set length "+length)
                 chaintool.process_cmd("search "+reg+" stack")
 
@@ -50,32 +50,31 @@ if __name__ == "__main__":
     for regstr in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
 
         for arithm in ["+", '-']:
-            for length in ["1", "2", "3", "4", "5", "6"]:
+            print " === ", regstr, " = ", regstr, " ", arithm, " const =================  "
+            for length in ["1", "2", "3", "4", "5"]:
                 chaintool.process_cmd("set length " + length)
-                print "\n === ", regstr, " = ", regstr, " ", arithm, " const =================  "
                 chaintool.process_cmd("search {0} {0} {1} 1".format(regstr,arithm))
-                chaintool.process_cmd("search {0} {0} {1} 2".format(regstr, arithm))
 
         for regstr2 in ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]:
 
             if regstr==regstr2:
                 continue
 
-            for length in ["1","2","3","4","5","6"]:
+            print "\n === " + regstr + " = " + regstr2 + " =================  "
+            for length in ["1","2","3","4"]:
                 chaintool.process_cmd("set length "+length)
-                print "\n === " + regstr + " = " + regstr2 + " =================  "
                 chaintool.start({regstr: Exp(regstr2) })
 
             for arithm in ["+", '-']:
-                for length in ["1", "2", "3", "4", "5", "6"]:
+                print "\n === ", regstr + " = " + regstr + " " + arithm + " " + regstr2, " =================  "
+                for length in ["1", "2", "3", "4"]:
                     chaintool.process_cmd("set length " + length)
-                    print "\n === ", regstr + " = " + regstr + " " + arithm + " " + regstr2, " =================  "
                     chaintool.process_cmd("search {0} {0} {1} {2}".format(regstr, arithm, regstr2))
                     #chaintool.start({regstr: Exp(Exp(regstr), arithm, Exp(regstr2))})
 
-            for length in ["1", "2", "3", "4", "5", "6"]:
+            print "\n === [" + regstr + "] = " + regstr2 + " =================  "
+            for length in ["1", "2", "3", "4", "5"]:
                 chaintool.process_cmd("set length " + length)
-                print "\n === [" + regstr + "] = " + regstr2 + " =================  "
                 chaintool.process_cmd("search mem {addr} {reg}".format(addr=regstr,reg=regstr2))
 
 #search mem eax ebx

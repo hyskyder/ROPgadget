@@ -50,14 +50,15 @@ class X86:
         "dl": ["edx $ 0 : 7", "edx = ( edx $ 8 : 31 ) # dl", 8],
     }
     # Instructions that will crash the program
-    CrashIns = ["in", "insb", "insd", "out", "outsd", "outsb", "sti", "iretd", "int"]
+    CrashIns = ["in", "insb", "insd", "out", "outsd", "outsb",  "iretd", "retf", "sti"]
+    ProblematicIns= ["ljmp", "lcall", "int", "hlt"]
     # Instructions that can be bypassed (no need to parse)
     BypassableIns = ["int1", "nop"]
     # Instructions that modifty the execution path
     Control = ["ret", "iret", "into", "enter", "leave", "call", "jmp", "ljmp"
                "ja", "jae", "jb", "jbe", "jc", "je",
-               "jnc", "jne", "jnp", "jp", "jg", "jge", "jl", "jle", "jno", "jns", "jo", "js", "jecxz"
-            ]
+               "jnc", "jne", "jnp", "jp", "jg", "jge", "jl", "jle", "jno", "jns", "jo", "js", "jecxz",
+               "loop", "loopne"]
     insn = {
         # data transfer
         "mov": [2, ["operand1 = operand2"], []],
@@ -123,6 +124,8 @@ class X86:
         "jns": [1, [], ["SF == 0 ? * operand1 : 0"]],
         "jo": [1, [], ["OF == 1 ? * operand1 : 0"]],
         "js": [1, [], ["SF == 1 ? * operand1 : 0"]],
+        "loop": [1, ["c = c - 1"], ["( c - 1 ) == 0 ? operand1 : 0"]], #FIXME
+        "loopne": [1, ["c = c - 1"], ["( c - 1 ) == 0 ? 0 : operand1"]], #FIXME
 
         #"hlt": [0, [], [] ], #TODO
         # logic
@@ -201,7 +204,7 @@ class ROPParserX86:
         prefix = insts[i]["mnemonic"]
         op_str = insts[i]["op_str"].replace("*", " * ")
 
-        if prefix in X86.CrashIns:
+        if (prefix in X86.CrashIns) or (prefix in X86.ProblematicIns):
             print "(CrashIns)",
             return {}
 
